@@ -54,10 +54,14 @@ static lv_obj_t *time_label;
 static lv_obj_t *temperature_label;
 static lv_obj_t *humidity_label;
 static lv_obj_t *week_info_label;
+static lv_obj_t *officer_label;
+static lv_obj_t *deity_label;
 static lv_obj_t *month_label;
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
 static lv_obj_t *battery_label;
-static lv_obj_t *bottom_right_label;
+static lv_obj_t *yi_label;
+static lv_obj_t *ji_label;
+static lv_obj_t *ganzhi_label;
 
 static int grid_year;
 static int grid_month;
@@ -175,15 +179,16 @@ void calendar_ui_create(lv_obj_t *parent)
     humidity_label = make_label(environment_panel, 68, 2, 64, &lv_font_calendar_16, LV_TEXT_ALIGN_RIGHT, 0, "");
 
     week_info_label = make_label(left_panel, 2, 166, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
-#if SHOW_DAILY_MESSAGE
-    make_label(left_panel, 2, 196, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, DAILY_MESSAGE);
-#endif
+    /* 十二建除 / 十二值神, in the two lines 宜/忌 used to occupy. */
+    officer_label = make_label(left_panel, 2, 194, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    deity_label   = make_label(left_panel, 2, 212, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
 
     make_line(root, SEP_V_X, SEP_V_Y, vertical_separator_points, 0, SEP_V_H);
 
     lv_obj_t *right_panel = make_container(root, RIGHT_X, RIGHT_Y, RIGHT_W, RIGHT_H);
 
     month_label = make_label(right_panel, 0, 0, RIGHT_W, &lv_font_calendar_18, LV_TEXT_ALIGN_LEFT, 0, "");
+    ganzhi_label = make_label(right_panel, RIGHT_W - 48, 3, 48, &lv_font_calendar_ganzhi_12, LV_TEXT_ALIGN_RIGHT, 0, "");
 
     for (int col = 0; col < CAL_COLS; col++) {
         make_label(right_panel, CAL_GRID_X + col * CAL_CELL_W, CAL_HEADER_Y,
@@ -207,8 +212,14 @@ void calendar_ui_create(lv_obj_t *parent)
 
     lv_obj_t *bottom_bar = make_container(root, BAR_X, BAR_Y, BAR_W, BAR_H);
 
-    battery_label      = make_label(bottom_bar, 0, 9, 200, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 1, "BATTERY --%");
-    bottom_right_label = make_label(bottom_bar, BAR_W - 200, 9, 200, &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "");
+    /* 宜/忌 run along the bottom-left, one clipped line each; the battery keeps
+       the bottom-right. The height is pinned to a single line so a list longer
+       than the bar is cut off instead of wrapping into the line below. */
+    yi_label = make_label(bottom_bar, 0, 2, BAR_W - 118, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    ji_label = make_label(bottom_bar, 0, 17, BAR_W - 118, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    lv_obj_set_height(yi_label, 14);
+    lv_obj_set_height(ji_label, 14);
+    battery_label = make_label(bottom_bar, BAR_W - 110, 9, 110, &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "BATTERY --%");
 }
 
 lv_obj_t *calendar_ui_root(void)
@@ -323,7 +334,9 @@ static void draw_calendar_grid(const calendar_ui_data_t *data)
 
 void calendar_ui_refresh_all(const calendar_ui_data_t *data)
 {
-    char buf[48];
+    /* 宜/忌 carry the whole almanac list; at 12 px CJK the longest is ~290
+       bytes with its prefix, and the label clips it to the bar width. */
+    char buf[320];
 
     if (root == NULL || data == NULL) {
         return;
@@ -336,13 +349,17 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
         lv_label_set_text(date_label, "");
         lv_label_set_text(weekday_label, "WAITING FOR TIME");
         lv_label_set_text(week_info_label, "");
+        lv_label_set_text(officer_label, "");
+        lv_label_set_text(deity_label, "");
         lv_label_set_text(month_label, "");
-        lv_label_set_text(bottom_right_label, "");
+        lv_label_set_text(yi_label, "");
+        lv_label_set_text(ji_label, "");
+        lv_label_set_text(ganzhi_label, "");
         clear_calendar_grid();
         return;
     }
 
-    snprintf(buf, sizeof(buf), "%04d · %02d · %02d", data->year, data->month, data->day);
+    snprintf(buf, sizeof(buf), "%04d·%02d·%02d", data->year, data->month, data->day);
     lv_label_set_text(date_label, buf);
     lv_label_set_text(weekday_label, calendar_calc_weekday_name(data->weekday));
 
@@ -352,8 +369,33 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
     snprintf(buf, sizeof(buf), "%s %04d", calendar_calc_month_name(data->month), data->year);
     lv_label_set_text(month_label, buf);
 
-    snprintf(buf, sizeof(buf), "%d / %d", data->day_of_year, data->days_of_year);
-    lv_label_set_text(bottom_right_label, buf);
+    if (data->lunar_data_valid) {
+        static const char *const gan[] = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+        static const char *const zhi[] = { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+        static const char *const officer_names[] = {
+            "建", "除", "满", "平", "定", "执", "破", "危", "成", "收", "开", "闭"
+        };
+        static const char *const deity_names[] = {
+            "青龙", "明堂", "天刑", "朱雀", "金匮", "天德",
+            "白虎", "玉堂", "天牢", "玄武", "司命", "勾陈"
+        };
+        snprintf(buf, sizeof(buf), "%s%s年", gan[data->lunar_year_gan], zhi[data->lunar_year_zhi]);
+        lv_label_set_text(ganzhi_label, buf);
+        snprintf(buf, sizeof(buf), "建除：%s", officer_names[data->lunar_officer_index]);
+        lv_label_set_text(officer_label, buf);
+        snprintf(buf, sizeof(buf), "值神：%s", deity_names[data->lunar_deity_index]);
+        lv_label_set_text(deity_label, buf);
+        snprintf(buf, sizeof(buf), "宜：%s", data->day_yi);
+        lv_label_set_text(yi_label, buf);
+        snprintf(buf, sizeof(buf), "忌：%s", data->day_ji);
+        lv_label_set_text(ji_label, buf);
+    } else {
+        lv_label_set_text(ganzhi_label, "");
+        lv_label_set_text(officer_label, "");
+        lv_label_set_text(deity_label, "");
+        lv_label_set_text(yi_label, "");
+        lv_label_set_text(ji_label, "");
+    }
 
     draw_calendar_grid(data);
 }
