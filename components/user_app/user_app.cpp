@@ -24,20 +24,6 @@ EventGroupHandle_t ConfigGroups;
 
 static bool is_CfgViewOn = false;
 
-void Lvgl_Cont1Task(void *arg) {
-    lv_obj_clear_flag(init_ui.screen_label_1,LV_OBJ_FLAG_HIDDEN); 
-    lv_obj_add_flag(init_ui.screen_label_2, LV_OBJ_FLAG_HIDDEN);
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    lv_obj_clear_flag(init_ui.screen_label_2,LV_OBJ_FLAG_HIDDEN); 
-    lv_obj_add_flag(init_ui.screen_label_1, LV_OBJ_FLAG_HIDDEN);
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    lv_obj_clear_flag(init_ui.screen_cont_2,LV_OBJ_FLAG_HIDDEN); 
-    lv_obj_add_flag(init_ui.screen_cont_1, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
-    vTaskDelete(NULL); 
-}
-
 void Lvgl_UserTask(void *arg) {
     uint32_t times = 0;
     uint32_t adc_time = 0;
@@ -136,7 +122,6 @@ void BOOT_LoopTask(void *arg) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_4,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_1, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_2, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -146,7 +131,6 @@ void BOOT_LoopTask(void *arg) {
                 is_CfgViewOn = 0;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_2,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_1, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -166,7 +150,6 @@ void KEY_LoopTask(void *arg) {
                 is_cont3en = 1;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_3,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_1, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_2, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -175,7 +158,6 @@ void KEY_LoopTask(void *arg) {
                 is_cont3en = 0;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_2,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_1, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -262,7 +244,6 @@ void UserApp_UiInit() {
 }
 
 void UserApp_TaskInit() {
-    xTaskCreatePinnedToCore(Lvgl_Cont1Task, "Lvgl_Cont1Task", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Lvgl_UserTask, "Lvgl_UserTask", 5 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Lvgl_SDcardTask, "Lvgl_SDcardTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Lvgl_BleScanTask, "Lvgl_BleScanTask", 4 * 1024, NULL, 2, NULL,1);

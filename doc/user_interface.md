@@ -31,31 +31,23 @@ Code map:
 
 ## 2. Screen model
 
-There is exactly **one** LVGL screen (`ui->screen`, white background). Four full-size containers
+There is exactly **one** LVGL screen (`ui->screen`, white background). Three full-size containers
 sit on it, and navigation is done by toggling `LV_OBJ_FLAG_HIDDEN` on them — `lv_scr_load()` and
 GUI Guider's screen-animation helpers are not used.
 
 | Container | View | Initial state |
 |---|---|---|
-| `screen_cont_1` | Panel self-test / splash | visible |
-| `screen_cont_2` | Status dashboard (the home view) | hidden |
+| `screen_cont_2` | Status dashboard (the home view) | visible |
 | `screen_cont_3` | Full-screen image | hidden |
 | `screen_cont_4` | Wi-Fi setup / configuration | hidden |
 
 The invariant is *exactly one container visible at a time*. Every switch must both clear the flag on
-the incoming container and set it on all three others; the toggle helpers in `BOOT_LoopTask` and
-`KEY_LoopTask` do this explicitly. Adding a fifth view means extending each of those lists.
+the incoming container and set it on both others; the toggle helpers in `BOOT_LoopTask` and
+`KEY_LoopTask` do this explicitly. Adding a fourth view means extending each of those lists.
 
 ## 3. The views
 
-### 3.1 Splash / panel self-test — `screen_cont_1`
-
-Two full-screen labels with empty text, one transparent over a white container, one filled black.
-`Lvgl_Cont1Task` shows the white one for 1.5 s, the black one for 1.5 s, then switches to the
-dashboard and deletes itself. It is a display polarity and uniformity check, not branding — total
-boot-to-dashboard time is ~3 s.
-
-### 3.2 Status dashboard — `screen_cont_2`
+### 3.1 Status dashboard — `screen_cont_2`
 
 The home view. Left half is a large clock and the local self-test results; right half is sensors and
 radio scan counts.
@@ -94,15 +86,15 @@ credentials exist it instead waits up to 20 s for the STA IP and reports that (W
 coexistent — see `AGENTS.md` §3). With no credentials, it scans BLE until it has 20 devices or goes
 3.5 s without a new one, shows `SETUP` on the Wi-Fi row, then tears BLE down and exits.
 
-### 3.3 Image view — `screen_cont_3`
+### 3.2 Image view — `screen_cont_3`
 
 A single full-bleed 400 × 300 image (`_ein_alpha_400x300`), nothing else. Reached by a long press on
 **KEY**, dismissed by another long press. This is the slot a calendar/photo page would take over.
 
-### 3.4 Wi-Fi setup view — `screen_cont_4`
+### 3.3 Wi-Fi setup view — `screen_cont_4`
 
 The network configuration view. It is reached by a long press on **BOOT** and shows what the
-device's own configuration hotspot is doing; all text entry happens on the phone (§3.5).
+device's own configuration hotspot is doing; all text entry happens on the phone (§3.4).
 
 | Widget | Position | Content |
 |---|---|---|
@@ -127,7 +119,7 @@ These are the only app labels written **with** the LVGL lock. The state text is 
 only CJK glyphs present in `lv_font_MISANSMEDIUM_25` are those the audio strings used, so a Chinese
 line here would render blank until the font is regenerated in GUI Guider (see §5).
 
-### 3.5 Wi-Fi setup flow
+### 3.4 Wi-Fi setup flow
 
 Nothing runs until the user opens the view. `Config_LoopTask` then:
 
@@ -192,21 +184,21 @@ Notes on the semantics as implemented:
 ### 4.2 Navigation state machine
 
 ```
-        boot
-          │
-          ▼
-   ┌─────────────┐  ~3 s   ┌───────────────┐
-   │   splash    │────────▶│   dashboard   │◀─────────────┐
-   │   cont_1    │         │    cont_2     │              │
-   └─────────────┘         └───────┬───────┘              │
-                        BOOT long  │  KEY long            │
-                    ┌──────────────┴──────────────┐       │
-                    ▼                             ▼       │
-            ┌───────────────┐             ┌───────────────┤
-            │  Wi-Fi setup  │             │  image view   │
-            │    cont_4     │             │    cont_3     │
-            └───────┬───────┘             └───────┬───────┘
-                    └── BOOT long ────────────────┴─ KEY long ─┘
+                            boot
+                              │
+                              ▼
+                      ┌───────────────┐
+                      │   dashboard   │◀─────────────┐
+                      │    cont_2     │              │
+                      └───────┬───────┘              │
+                   BOOT long  │  KEY long            │
+               ┌──────────────┴──────────────┐       │
+               ▼                             ▼       │
+       ┌───────────────┐             ┌───────────────┤
+       │  Wi-Fi setup  │             │  image view   │
+       │    cont_4     │             │    cont_3     │
+       └───────┬───────┘             └───────┬───────┘
+               └── BOOT long ────────────────┴─ KEY long ─┘
 ```
 
 ## 5. Typography and assets
@@ -217,11 +209,10 @@ Notes on the semantics as implemented:
 | `lv_font_MISANSMEDIUM_25` | 25 px | Wi-Fi setup title and state line |
 | `lv_font_MISANSMEDIUM_20` | 20 px | all dashboard labels |
 | `lv_font_MISANSMEDIUM_18` | 18 px | Wi-Fi setup portal/hint lines |
-| `lv_font_montserratMedium_16` | 16 px | splash labels (both empty) |
 
-MiSans carries the Chinese glyphs; Montserrat is Latin-only. **Any new Chinese string must use a
-MiSans face**, and the glyph must be in the subset GUI Guider generated — adding characters means
-regenerating the font, not just typing them. The 25 px subset holds only the 13 CJK glyphs the audio
+Every font in the UI is a MiSans subset. **Any new Chinese string must use a MiSans face**, and the
+glyph must be in the subset GUI Guider generated — adding characters means regenerating the font,
+not just typing them. The 25 px subset holds only the 13 CJK glyphs the audio
 strings needed (`等待操作正在录音完成播放音乐`), which is why the setup view is English-only; the
 Chinese half of its strings lives in the phone-facing portal page instead.
 
@@ -255,8 +246,6 @@ Inherited from the factory demo, or left by the setup-view change; flag rather t
 * The BLE device count is a one-shot boot diagnostic displayed permanently.
 * `Lvgl_UserTask` schedules with equality tests (`times - adc_time == 10`). It works only because the
   counter increments by exactly one per iteration; use `>=` if you change that loop.
-* The splash is a panel test, so the device shows 1.5 s of solid white then 1.5 s of solid black on
-  every boot.
 * The setup view is English-only, because the generated MiSans subsets do not cover the Chinese it
   needs (§5). Regenerate the fonts in GUI Guider if the bilingual policy has to hold there.
 * `Rtc_SetTime(2026,1,5,14,30,30)` still runs on every boot in `UserApp_AppInit()`, so the RTC never
