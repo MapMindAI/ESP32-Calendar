@@ -62,11 +62,14 @@ by calendar functionality — see §10 for what is residue and what is real.
 |---|---|
 | `README.md` | Board specification, the peripherals this firmware drives and their pins, build/flash quickstart, vendor and datasheet links |
 | `doc/user_interface.md` | Display constraints, the one-screen/four-container view model, every widget and what updates it, button gestures and bindings, fonts and assets |
+| `doc/data_sources.md` | Where the RTC/SNTP time and SHTC3 readings come from, how they are validated, and when a changed value reaches the panel |
+| `doc/almanac.md` | The 宜忌 / 十二建除 / 十二值神 day table: its generated C assets and font, and how to rebuild them — from `lunar_python`, or from the checked-in CSV with `--from-csv` |
 
 Ship doc updates with the code, not as a follow-up:
 
 * New or changed screens, widgets, label semantics, or button bindings → `doc/user_interface.md`.
 * New peripheral, pin change, or a change to what is attached → the hardware tables in `README.md`.
+* A change to the almanac table, its generated headers or its CJK font → `doc/almanac.md`.
 * New design/protocol notes go in `doc/`; link them from the table above and from `README.md`.
 
 ## 2. Toolchain and build
@@ -201,9 +204,9 @@ Flag these rather than quietly preserving them; several are things a calendar bu
 * Station credentials now live in the NVS namespace `wificfg`, written by the captive portal. The
   only literals left in `esp_wifi_bsp.h` are the configuration hotspot's own SSID and passphrase,
   which are printed on the setup screen by design — never add another hardcoded credential.
-* `ble_scan_bsp` and `adc_bsp` are compiled and linked but nothing calls them any more — the BLE
-  device count and the battery percentage went with the old dashboard. Bluetooth is still enabled in
-  `sdkconfig.defaults` and costs flash for nothing.
+* `ble_scan_bsp` is compiled and linked but nothing calls it any more — the BLE device count went
+  with the old dashboard. Bluetooth is still enabled in `sdkconfig.defaults` and costs flash for
+  nothing. (`adc_bsp` is in use: `Battery_LoopTask` reads it for the bottom-right battery label.)
 * `sdcard_bsp` is linked but the card is no longer mounted: the `/sdcard` FAT mount existed only for
   the `Lvgl_SDcardTask` self-test, which is gone.
 * The GUI Guider project still builds `screen_cont_2` (the old dashboard), which `UserApp_UiInit()`

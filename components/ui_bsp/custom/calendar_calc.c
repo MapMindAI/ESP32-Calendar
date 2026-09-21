@@ -1,4 +1,6 @@
 #include "calendar_calc.h"
+#include "lunar_auspicious_days.h"
+#include "lunar_yiji_data.h"
 
 static const char *const month_names[12] = {
     "JANUARY", "FEBRUARY", "MARCH",     "APRIL",   "MAY",      "JUNE",
@@ -114,5 +116,26 @@ void calendar_calc_fill(calendar_ui_data_t *data, const struct tm *local)
     data->week_number  = calendar_calc_iso_week(data->year, data->month, data->day);
     data->day_of_year  = calendar_calc_day_of_year(data->year, data->month, data->day);
     data->days_of_year = calendar_calc_days_in_year(data->year);
+    data->lunar_data_valid = data->year >= LUNAR_AUSPICIOUS_FIRST_YEAR &&
+                             data->year <= LUNAR_AUSPICIOUS_LAST_YEAR;
+    data->lunar_auspicious = data->lunar_data_valid &&
+                             lunar_is_auspicious_day(data->year, data->day_of_year);
+    data->lunar_deity_index = data->lunar_data_valid ?
+                              lunar_day_deity_index(data->year, data->day_of_year) : 0;
+    data->lunar_officer_index = data->lunar_data_valid ?
+                                lunar_day_officer_index(data->year, data->day_of_year) : 0;
+    if (data->lunar_data_valid) {
+        int index = data->day_of_year - 1;
+        for (int year = LUNAR_AUSPICIOUS_FIRST_YEAR; year < data->year; year++) {
+            index += calendar_calc_days_in_year(year);
+        }
+        data->day_yi = lunar_yi(index);
+        data->day_ji = lunar_ji(index);
+    }
+    /* Display the Gregorian year's 干支 beside its printed year. */
+    data->lunar_year_gan = (data->year - 4) % 10;
+    data->lunar_year_zhi = (data->year - 4) % 12;
+    if (data->lunar_year_gan < 0) data->lunar_year_gan += 10;
+    if (data->lunar_year_zhi < 0) data->lunar_year_zhi += 12;
     data->time_valid   = true;
 }

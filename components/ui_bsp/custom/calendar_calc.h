@@ -24,6 +24,16 @@ typedef struct {
     int day_of_year;    /* 1..366 */
     int days_of_year;   /* 365 or 366 */
 
+    /* 十二值日口径的黄道日状态；the generated lookup covers 2026..2030. */
+    bool lunar_data_valid;
+    bool lunar_auspicious;
+    unsigned char lunar_deity_index;    /* 青龙..勾陈, 0..11 */
+    unsigned char lunar_officer_index;  /* 建..闭, 0..11    */
+    const char *day_yi;
+    const char *day_ji;
+    int lunar_year_gan; /* 0 = 甲 ... 9 = 癸 */
+    int lunar_year_zhi; /* 0 = 子 ... 11 = 亥 */
+
     bool time_valid;
 
     float temperature_c;

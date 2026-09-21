@@ -100,8 +100,8 @@ passed without an environment redraw.
 
 `Adc_PortInit()` configures ADC1 channel 3 during application initialization. `Battery_LoopTask`
 samples the existing `Adc_GetBatteryLevel()` helper once per minute and updates the dashboard's
-bottom-left label only when the integer percentage changes. The helper maps 3.0 V or below to 0%,
-4.12 V or above to 100%, and interpolates linearly between those voltages.
+bottom-right percentage label only when the integer percentage changes. The helper maps 3.0 V or
+below to 0%, 4.12 V or above to 100%, and interpolates linearly between those voltages.
 
 ## Rendering implication
 

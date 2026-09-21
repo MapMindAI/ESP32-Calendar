@@ -67,7 +67,7 @@ The home view: the clock and the date in a narrow left column, the current month
 ```
  (0,0)                                                                  (400,0)
  ┌────────────────────┬─────────────────────────────────────────────────┐
- │ 2026 · 09 · 21     │  SEPTEMBER 2026                                 │
+ │ 2026·09·21         │  SEPTEMBER 2026  丙午年                          │
  │ MONDAY             │                                                 │
  │                    │    M    T    W    T    F    S    S              │
  │ 10:24              │         1    2    3    4    5    6              │
@@ -75,10 +75,11 @@ The home view: the clock and the date in a narrow left column, the current month
  │ 24.8°C │ 56% RH    │   14   15   16   17   18   19   20              │
  │                    │  [21]  22   23   24   25   26   27              │
  │ WEEK 39 · DAY 264  │   28   29   30                                  │
+ │ 建除：建 值神：青龙 │                                                 │
  │                    │                                                 │
- │ A NEW DAY BEGINS.  │                                                 │
  ├────────────────────┴─────────────────────────────────────────────────┤
- │  MONDAY · SEPTEMBER 21                                    264 / 365  │
+ │ 宜：嫁娶、纳采、祭祀、解除、出行、修造…                           87%│
+ │ 忌：造庙、行丧、安葬、伐木…                                           │
  └──────────────────────────────────────────────────────────────────────┘
  (0,300)                                                              (400,300)
 ```
@@ -92,21 +93,21 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 
 | Widget | Position (x, y) | Content | Written by | Cadence |
 |---|---|---|---|---|
-| `date_label` | 16, 18 | `%04d · %02d · %02d`, 16 px | `Calendar_LoopTask` | on date change |
+| `date_label` | 16, 18 | `%04d·%02d·%02d`, 16 px | `Calendar_LoopTask` | on date change |
 | `weekday_label` | 16, 42 | `MONDAY` … `SUNDAY`, 12 px | `Calendar_LoopTask` | on date change |
 | `time_label` | 15, 68 (133 wide) | `%02d:%02d`, 48 px, fixed width | `Calendar_LoopTask` | on minute change |
 | `temperature_label` | 16, 136 | `%.1f°C`, 16 px | `Sensor_LoopTask` | on threshold |
 | `env_separator` | 78, 137 (16 tall) | 1 px rule between the two readings | — | — |
 | `humidity_label` | right-aligned to 148, 136 | `%.0f%% RH`, 16 px | `Sensor_LoopTask` | on threshold |
 | `week_info_label` | 16, 180 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
-| `message_label` | 16, 210 | static `A NEW DAY BEGINS.`, 12 px | — | — |
+| `almanac_label` | 16, 208 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
 | `vertical_separator` | 158, 15 (220 tall) | column rule | — | — |
-| `month_label` | 168, 15 | `SEPTEMBER 2026`, 18 px | `Calendar_LoopTask` | on date change |
+| `month_label`, `ganzhi_label` | 168…384, 15 | `SEPTEMBER 2026` plus `丙午年`, 18 px / 12 px | `Calendar_LoopTask` | on date change |
 | `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
 | `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
-| `battery_label` | 16, 261 | `BATTERY %u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
-| `bottom_right_label` | right-aligned to 384, 261 | `%d / %d` day of year, 12 px | `Calendar_LoopTask` | on date change |
+| `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `battery_label` | right-aligned to 384, 261 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
 neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
@@ -123,6 +124,7 @@ behind it actually moved:
 | Date, weekday, week, month grid, bottom bar | system clock, 1 s | when the day changes (`calendar_ui_refresh_all`) |
 | Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 %, or after 10 minutes without a repaint |
 | Battery | ADC1 channel 3, 60 s | when the percentage changes |
+| Almanac result | generated 2026--2030 day table, 1 s | when the day changes |
 
 In practice the panel redraws once a minute.
 
@@ -157,9 +159,22 @@ ADC1     ──▶ Battery_LoopTask ──────────────�
   sensor dithering between 24.7 and 24.8 does not walk over the refresh threshold each minute.
 * `calendar_calc` (`components/ui_bsp/custom/calendar_calc.c`) turns a `struct tm` into the
   `calendar_ui_data_t` the UI draws: weekday (Monday-first), ISO 8601 week number, day of year.
-  The UI reads that struct and nothing else.
+  It also looks up the generated 2026--2030 almanac: the 黄道吉日 bit, the 十二建除 officer and the
+  十二值神 deity, the last two as 4-bit indices into the name tables in `calendar_ui.c`. The UI
+  reads that struct and nothing else.
+* `lunar/lunar_utils.py` produces both the complete
+  `lunar/auspicious_days_2026_2030.csv` reference list and the compact
+  `components/ui_bsp/custom/lunar_auspicious_days.h` firmware asset. “黄道吉日” here uses the
+  traditional 十二值日 definition: 除、危、定、执、成、开. It is a calendar classification, not a
+  recommendation for a particular activity. Dates outside 2026--2030 deliberately leave the
+  centre status blank rather than presenting an invented result.
+  `lunar/generate_ui_yiji.py` turns the CSV's 宜 / 忌 columns into
+  `components/ui_bsp/custom/lunar_yiji_data.h` — the complete list for every day, ~275 KiB of flash,
+  because the bar clips each line rather than truncating the data — plus the 1 bpp font that covers
+  every character those lists use. Both scripts rebuild their firmware assets from the checked-in CSV
+  with `--from-csv`; see [`almanac.md`](almanac.md) for the full regeneration procedure.
 * `Battery_LoopTask` samples the existing ADC1 channel 3 driver once a minute and writes its
-  percentage to the bottom-left status label. The driver maps 3.0 V or below to 0%, 4.12 V or above
+  percentage to the bottom-right status label. The driver maps 3.0 V or below to 0%, 4.12 V or above
   to 100%, with a linear value between those limits.
 
 #### LVGL performance monitor
@@ -293,7 +308,10 @@ different places.
 | `lv_font_calendar_clock_48` | 48 px | 1 | the clock; digits, `:` and `-` only |
 | `lv_font_calendar_18` | 18 px | 1 | month heading |
 | `lv_font_calendar_16` | 16 px | 1 | date line, temperature and humidity, calendar grid and its header |
-| `lv_font_calendar_12` | 12 px | 1 | weekday, week counter, message, bottom bar |
+| `lv_font_calendar_12` | 12 px | 1 | weekday, week counter, bottom bar |
+| `lv_font_calendar_chinese_12` | 12 px | 1 | — (no caller; the 黄道吉日 state is not drawn) |
+| `lv_font_calendar_ganzhi_12` | 12 px | 1 | year 干支 beside the month heading (2026--2030 stems and branches) |
+| `lv_font_calendar_yiji_12` | 12 px | 1 | the `宜：` / `忌：` lines in the bottom bar (one clipped line each) and the single `建除：… 值神：…` line in the left column |
 | `lv_font_MISANSMEDIUM_25` | 25 px | 4 | Wi-Fi setup title and state line |
 | `lv_font_MISANSMEDIUM_20` | 20 px | 4 | — (unused since the dashboard was replaced) |
 | `lv_font_MISANSMEDIUM_18` | 18 px | 4 | Wi-Fi setup portal/hint lines |
@@ -310,9 +328,19 @@ the month grid — the two trade against each other directly. The exact `lv_font
 sits in the header comment of each generated `.c` file; rerun it at a different size to move that
 trade. The clock face carries digits, `:` and `-` only — enough for `10:24` and `--:--`.
 
-`lv_font_calendar_*` covers ASCII plus U+00B0 (`°`) and U+00B7 (`·`), and **no CJK**: the dashboard
-is English-only, so the bilingual rule in `AGENTS.md` §9 applies to the setup view's strings, not to
-this screen. Adding a Chinese label here means generating a CJK subset first.
+`lv_font_calendar_*` covers ASCII plus U+00B0 (`°`) and U+00B7 (`·`). Chinese is served by three
+1 bpp Noto Sans CJK subsets, each carrying only the glyphs its own strings need:
+`lv_font_calendar_ganzhi_12` holds the 2026--2030 stems and branches, `lv_font_calendar_yiji_12` is
+generated by `lunar/generate_ui_yiji.py` and covers every character that appears in any day's 宜 / 忌
+list plus the fixed `宜忌无：十二建除值神` wording, a space to separate the two status fields, and all
+十二建除 / 十二值神 names (224 glyphs, ~4.7 KB), and `lv_font_calendar_chinese_12` holds
+今、吉、日、道、非、黄 for the 黄道吉日 wording. Add new Chinese dashboard wording by regenerating an
+explicit 1 bpp subset first.
+
+A hand-written `lv_font_fmt_txt_*` face must keep `glyph_id_start = 1` **and** reserve
+`glyph_dsc[0]` for an all-zero placeholder, the way `lv_font_conv` does: LVGL looks up
+`glyph_dsc[glyph_id_start + index]`, so a face without the placeholder draws each character with the
+next character's glyph and reads past the end of the array for its last one.
 
 The MiSans faces remain GUI Guider output and still serve the setup view. Its 25 px subset holds
 only the 13 CJK glyphs the removed audio strings needed (`等待操作正在录音完成播放音乐`), which is why
@@ -362,10 +390,11 @@ Inherited from the factory demo, or left by the dashboard rewrite; flag rather t
   needs (§5). Regenerate the fonts in GUI Guider if the bilingual policy has to hold there.
 * The codec hardware, `canon.pcm` and the 288 KB PSRAM audio buffer are no longer used by anything —
   `CodecPort` is not instantiated; only the `codec_bsp` component remains linked.
-* `ble_scan_bsp` and `adc_bsp` are still compiled and linked but no longer called: the BLE device
-  count and the battery percentage both went with the old dashboard. Bluetooth is still enabled in
-  `sdkconfig.defaults` and costs flash for nothing.
+* `ble_scan_bsp` is still compiled and linked but no longer called: the BLE device count went with
+  the old dashboard. Bluetooth is still enabled in `sdkconfig.defaults` and costs flash for nothing.
 * The SD card is no longer mounted. `CustomSDPort` and the `/sdcard` FAT mount went with the
   `sdcard Test:` self-test row; `sdcard_bsp` and `fatfs` remain linked.
-* Battery state is not displayed anywhere. On a device that runs from an 18650 that is a real gap,
-  but the dashboard layout has no slot for it.
+* `calendar_calc` still computes `lunar_auspicious` (黄道吉日) and still fills `days_of_year`, but
+  nothing draws either: the 黄道吉日 state and the day-of-year readout went with the old bottom bar.
+  `lv_font_calendar_chinese_12` (§5) is the face that would render the 今日黄道吉日 wording if it is
+  ever wired up.

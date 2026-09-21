@@ -6,7 +6,7 @@
 #define LCD_WIDTH      300    //需要注意的是,竖屏和横屏显示的时候,分辨率不一样的
 #define LCD_HEIGHT     400    //需要注意的是,竖屏和横屏显示的时候,分辨率不一样的
 /* Maximum LVGL render cadence while there is work to draw. */
-#define RENDER_FPS     5
+#define RENDER_FPS     1
 
 #if RENDER_FPS < 1 || RENDER_FPS > 1000
 #error "RENDER_FPS must be between 1 and 1000"
