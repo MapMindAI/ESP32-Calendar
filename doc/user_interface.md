@@ -18,6 +18,9 @@ Code map:
 | Button decoding | `components/port_bsp/button_bsp.c` |
 | LVGL port, flush, refresh policy | `components/app_bsp/lvgl_bsp.cpp`, `main/main.cpp` |
 
+For source, validation and synchronization details, see
+[`data_sources.md`](data_sources.md).
+
 ## 1. Display characteristics that shape the design
 
 * **400 × 300 landscape, 1 bit per pixel.** There is no grey. LVGL renders RGB565 and the flush

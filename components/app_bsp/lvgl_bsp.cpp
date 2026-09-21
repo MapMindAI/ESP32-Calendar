@@ -8,6 +8,7 @@
 static lv_disp_draw_buf_t disp_buf; 		// contains internal graphic buffer(s) called draw buffer(s)
 static lv_disp_drv_t disp_drv;      		// contains callback functions
 static SemaphoreHandle_t lvgl_mux = NULL;
+static uint32_t render_interval_ms;
 
 static const char *TAG = "LvglPort";
 
@@ -39,19 +40,21 @@ static void Lvgl_port_task(void *arg)
   	  	  	//Release the mutex
   	  	  	Lvgl_unlock();
   	  	}
-  	  	if (task_delay_ms > LVGL_TASK_MAX_DELAY_MS)
-  	  	{
-  	  	  	task_delay_ms = LVGL_TASK_MAX_DELAY_MS;
-  	  	} else if (task_delay_ms < LVGL_TASK_MIN_DELAY_MS)
-  	  	{
-  	  	  	task_delay_ms = LVGL_TASK_MIN_DELAY_MS;
-  	  	}
+        if (task_delay_ms > LVGL_TASK_MAX_DELAY_MS)
+        {
+            task_delay_ms = LVGL_TASK_MAX_DELAY_MS;
+        } else if (task_delay_ms < render_interval_ms)
+        {
+            task_delay_ms = render_interval_ms;
+        }
   	  	vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
   	}
 }
 
 
-void Lvgl_PortInit(int width, int height,DispFlushCb flush_cb) {
+void Lvgl_PortInit(int width, int height, uint32_t render_fps, DispFlushCb flush_cb) {
+    assert(render_fps > 0 && render_fps <= 1000);
+    render_interval_ms = 1000 / render_fps;
     lvgl_mux = xSemaphoreCreateMutex();
     lv_init();
     lv_color_t *buffer1 = (lv_color_t *)heap_caps_malloc(width * height * sizeof(lv_color_t) , MALLOC_CAP_SPIRAM);

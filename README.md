@@ -111,6 +111,8 @@ rules for generated and vendored code.
 
 * **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the three views and every
   widget on them, the refresh policy, button gestures, fonts and image assets
+* **[doc/data_sources.md](doc/data_sources.md)** — RTC/SNTP time synchronization, SHTC3 readings,
+  validation, smoothing and dashboard update cadence
 * **[AGENTS.md](AGENTS.md)** — contributor rules, annotated layout, boot and concurrency contract,
   known rough edges inherited from the factory demo
 
