@@ -39,6 +39,11 @@
 #define BAR_W 368
 #define BAR_H 32
 
+/* The battery reads "<n>%" now — 39 px at its widest in the 12 px face — so it
+   claims little of the bar and the 宜/忌 lines get the rest. */
+#define BAR_BATTERY_W 48
+#define BAR_YIJI_W    (BAR_W - BAR_BATTERY_W - 8)
+
 #define CAL_COLS     7
 #define CAL_ROWS     6
 #define CAL_CELL_W   30
@@ -215,11 +220,12 @@ void calendar_ui_create(lv_obj_t *parent)
     /* 宜/忌 run along the bottom-left, one clipped line each; the battery keeps
        the bottom-right. The height is pinned to a single line so a list longer
        than the bar is cut off instead of wrapping into the line below. */
-    yi_label = make_label(bottom_bar, 0, 2, BAR_W - 118, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
-    ji_label = make_label(bottom_bar, 0, 17, BAR_W - 118, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    yi_label = make_label(bottom_bar, 0, 2, BAR_YIJI_W, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    ji_label = make_label(bottom_bar, 0, 17, BAR_YIJI_W, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
     lv_obj_set_height(yi_label, 14);
     lv_obj_set_height(ji_label, 14);
-    battery_label = make_label(bottom_bar, BAR_W - 110, 9, 110, &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "BATTERY --%");
+    battery_label = make_label(bottom_bar, BAR_W - BAR_BATTERY_W, 9, BAR_BATTERY_W,
+                               &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "--%");
 }
 
 lv_obj_t *calendar_ui_root(void)
@@ -270,7 +276,7 @@ void calendar_ui_update_battery(uint8_t percent)
     if (battery_label == NULL) {
         return;
     }
-    snprintf(buf, sizeof(buf), "BATTERY %u%%", percent);
+    snprintf(buf, sizeof(buf), "%u%%", percent);
     lv_label_set_text(battery_label, buf);
 }
 

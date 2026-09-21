@@ -78,8 +78,8 @@ The home view: the clock and the date in a narrow left column, the current month
  │ 建除：建           │                                                 │
  │ 值神：青龙         │                                                 │
  ├────────────────────┴─────────────────────────────────────────────────┤
- │ 宜：嫁娶、纳采、祭祀、解除…                         BATTERY 87%      │
- │ 忌：造庙、行丧、安葬、伐木…                                          │
+ │ 宜：嫁娶、纳采、祭祀、解除、出行、修造…                           87%│
+ │ 忌：造庙、行丧、安葬、伐木…                                           │
  └──────────────────────────────────────────────────────────────────────┘
  (0,300)                                                              (400,300)
 ```
@@ -107,8 +107,8 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
 | `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
-| `yi_label`, `ji_label` | 16, 254 / 269 (250 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
-| `battery_label` | right-aligned to 384, 261 (110 wide) | `BATTERY %u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
+| `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `battery_label` | right-aligned to 384, 261 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
 neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
