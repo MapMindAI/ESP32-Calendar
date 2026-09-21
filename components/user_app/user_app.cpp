@@ -1,116 +1,124 @@
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
 #include <freertos/FreeRTOS.h>
 #include <esp_log.h>
 #include "button_bsp.h"
 #include "user_app.h"
 #include "lvgl_bsp.h"
 #include "gui_guider.h"
-#include "i2c_equipment.h"
+#include "calendar_ui.h"
+#include "calendar_calc.h"
 #include "i2c_bsp.h"
-#include "sdcard_bsp.h"
-#include "adc_bsp.h"
+#include "time_manager.h"
+#include "sensor_manager.h"
 #include "esp_wifi_bsp.h"
-#include "ble_scan_bsp.h"
 
 static lv_ui init_ui;
 I2cMasterBus I2cbus(14,13,0);
-CustomSDPort *sdcardPort = NULL;
-Shtc3Port *shtc3port = NULL;
 EventGroupHandle_t ConfigGroups;
 
 /* ConfigGroups bits */
 #define CFG_REQ_START 0x01
 #define CFG_REQ_STOP  0x02
 
+/* The panel repaints in full on any invalidation, so a widget is only written
+   when the value behind it actually moved: the clock at minute resolution, the
+   environment row on a threshold, everything else when the date rolls over. */
+#define SENSOR_READ_INTERVAL_MS      60000
+#define TEMPERATURE_REFRESH_THRESHOLD 0.2f
+#define HUMIDITY_REFRESH_THRESHOLD    1.0f
+#define ENVIRONMENT_MAX_REFRESH_MIN   10
+
 static bool is_CfgViewOn = false;
 
-void Lvgl_UserTask(void *arg) {
-    uint32_t times = 0;
-    uint32_t adc_time = 0;
-    uint32_t rtc_time = 0;
-    uint32_t shtc3_time = 0;
-    char lvgl_buffer[30] = {""};
+/* Clock and calendar. Polls the system clock once a second and writes a widget
+   only on a minute or date change. */
+void Calendar_LoopTask(void *arg) {
+    calendar_ui_data_t data;
+    environment_data_t environment;
+    struct tm local;
+    int last_minute = -1;
+    int last_day = -1;
+    bool last_valid = false;
     for(;;) {
-        if(times - adc_time == 10) {
-            adc_time = times;
-            uint8_t level = Adc_GetBatteryLevel();
-            snprintf(lvgl_buffer,30,"%d%%",level);
-            lv_label_set_text(init_ui.screen_label_7, lvgl_buffer);
+        bool valid = time_manager_get_local(&local);
+        if(!valid) {
+            last_valid = false;
+            last_minute = -1;
+            last_day = -1;
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
         }
-        if(times - rtc_time == 5) {
-            rtc_time = times;
-            rtcTimeStruct_t timerData;
-            Rtc_GetTime(&timerData);
-            snprintf(lvgl_buffer,30,"%02d",timerData.minute);
-            lv_label_set_text(init_ui.screen_label_3, lvgl_buffer);
-            snprintf(lvgl_buffer,30,"%02d",timerData.second);
-            lv_label_set_text(init_ui.screen_label_4, lvgl_buffer);
+        memset(&data,0,sizeof(data));
+        calendar_calc_fill(&data,&local);
+        sensor_manager_last(&environment);
+        data.temperature_c = environment.temperature_c;
+        data.humidity_percent = environment.humidity_percent;
+        data.environment_valid = environment.valid;
+
+        if(!last_valid || data.day != last_day) {
+            if(Lvgl_lock(-1)) {
+                calendar_ui_refresh_all(&data);
+                Lvgl_unlock();
+            }
+            last_valid = true;
+            last_day = data.day;
+            last_minute = data.minute;
+        } else if(data.minute != last_minute) {
+            if(Lvgl_lock(-1)) {
+                calendar_ui_update_time(data.hour,data.minute,true);
+                Lvgl_unlock();
+            }
+            last_minute = data.minute;
         }
-        if(times - shtc3_time == 25)
-        {
-            shtc3_time = times;
-            float rh,temp;
-            shtc3port->Shtc3_ReadTempHumi(&temp,&rh);
-            snprintf(lvgl_buffer,30,"%d%%",(int)rh);
-            lv_label_set_text(init_ui.screen_label_11, lvgl_buffer);
-            snprintf(lvgl_buffer,30,"%d°",(int)temp);
-            lv_label_set_text(init_ui.screen_label_12, lvgl_buffer);
-        }
-        vTaskDelay(pdMS_TO_TICKS(200));
-        times++;
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-void Lvgl_SDcardTask(void *arg) {
-    const char *str_write = "waveshare.com";
-    char str_read[20] = {""};
-    if(0 == sdcardPort->SDPort_GetStatus()) {
-        lv_label_set_text(init_ui.screen_label_6, "No Card");
-    } else {
-        sdcardPort->SDPort_WriteFile("/sdcard/sdcard.txt",str_write,strlen(str_write));
-        sdcardPort->SDPort_ReadFile("/sdcard/sdcard.txt",(uint8_t *)str_read,NULL);
-        if(!strcmp(str_write,str_read)) {
-            lv_label_set_text(init_ui.screen_label_6, "passed");
+/* Temperature and humidity. Reads once a minute; repaints only when the value
+   crosses a threshold, or after ENVIRONMENT_MAX_REFRESH_MIN of no movement. */
+void Sensor_LoopTask(void *arg) {
+    environment_data_t environment;
+    float shown_temperature = 0.0f;
+    float shown_humidity = 0.0f;
+    bool shown_valid = false;
+    uint32_t minutes_since_refresh = ENVIRONMENT_MAX_REFRESH_MIN;
+    for(;;) {
+        sensor_manager_read(&environment);
+        bool publish = false;
+        if(environment.valid != shown_valid) {
+            publish = true;
+        } else if(environment.valid &&
+                  (fabsf(environment.temperature_c - shown_temperature) >= TEMPERATURE_REFRESH_THRESHOLD ||
+                   fabsf(environment.humidity_percent - shown_humidity) >= HUMIDITY_REFRESH_THRESHOLD)) {
+            publish = true;
+        } else if(minutes_since_refresh >= ENVIRONMENT_MAX_REFRESH_MIN) {
+            publish = true;
+        }
+        if(publish) {
+            if(Lvgl_lock(-1)) {
+                calendar_ui_update_environment(environment.temperature_c,environment.humidity_percent,environment.valid);
+                Lvgl_unlock();
+            }
+            shown_temperature = environment.temperature_c;
+            shown_humidity = environment.humidity_percent;
+            shown_valid = environment.valid;
+            minutes_since_refresh = 0;
         } else {
-            lv_label_set_text(init_ui.screen_label_6, "failed");
+            minutes_since_refresh++;
         }
+        vTaskDelay(pdMS_TO_TICKS(SENSOR_READ_INTERVAL_MS));
     }
-    vTaskDelete(NULL);
 }
 
-void Lvgl_BleScanTask(void *srg) {
-    char send_lvgl[10] = {""};
-    uint8_t ble_scan_count = 0;
-    uint8_t ble_mac[6];
-    /* If credentials are stored, give the STA connection time to come up and
-       leave the radio to Wi-Fi: BLE and Wi-Fi are not coexistent here. */
-    for(int i = 0; i < 40 && espwifi_is_active() && !user_esp_bsp._ip[0]; i++) {
-        vTaskDelay(pdMS_TO_TICKS(500));
+/* Waits for the station to get an address — at boot from stored credentials, or
+   later from the setup view — then hands the clock over to SNTP and exits. */
+void Time_SyncTask(void *arg) {
+    for(;!user_esp_bsp._ip[0];) {
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
-    if(espwifi_is_active()) {
-        if(Lvgl_lock(-1)) {
-            lv_label_set_text(init_ui.screen_label_14, user_esp_bsp._ip[0] ? user_esp_bsp._ip : "OFFLINE");
-            lv_label_set_text(init_ui.screen_label_13, "-");
-            Lvgl_unlock();
-        }
-        vTaskDelete(NULL);
-    }
-    ble_scan_prepare();
-    ble_stack_init();
-    ble_scan_start();
-    for(;xQueueReceive(ble_queue,ble_mac,3500) == pdTRUE;) {
-        ble_scan_count++;
-        if(ble_scan_count >= 20)
-        break;
-        vTaskDelay(pdMS_TO_TICKS(30));
-    }
-    snprintf(send_lvgl,10,"%d",ble_scan_count);
-    if(Lvgl_lock(-1)) {
-        lv_label_set_text(init_ui.screen_label_14, "SETUP");
-        lv_label_set_text(init_ui.screen_label_13, send_lvgl);
-        Lvgl_unlock();
-    }
-    ble_stack_deinit();    //释放BLE
+    time_manager_start_sntp();
     vTaskDelete(NULL);
 }
 
@@ -122,7 +130,7 @@ void BOOT_LoopTask(void *arg) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_4,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_2, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
                 }
@@ -130,7 +138,7 @@ void BOOT_LoopTask(void *arg) {
             } else {
                 is_CfgViewOn = 0;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(init_ui.screen_cont_2,LV_OBJ_FLAG_HIDDEN); 
+                    lv_obj_clear_flag(calendar_ui_root(),LV_OBJ_FLAG_HIDDEN); 
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -150,14 +158,14 @@ void KEY_LoopTask(void *arg) {
                 is_cont3en = 1;
                 if(Lvgl_lock(-1)) {
                     lv_obj_clear_flag(init_ui.screen_cont_3,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_2, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
                 }
             } else {
                 is_cont3en = 0;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(init_ui.screen_cont_2,LV_OBJ_FLAG_HIDDEN); 
+                    lv_obj_clear_flag(calendar_ui_root(),LV_OBJ_FLAG_HIDDEN); 
                     lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
                     lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
                     Lvgl_unlock();
@@ -215,10 +223,6 @@ void Config_LoopTask(void *arg) {
                 char ip[80];
                 snprintf(ip,sizeof(ip),"Connected!\nIP %s",user_esp_bsp._ip);
                 cfg_set_labels(ip, "Settings saved\nLong-press BOOT to exit");
-                if(Lvgl_lock(-1)) {
-                    lv_label_set_text(init_ui.screen_label_14, user_esp_bsp._ip);
-                    Lvgl_unlock();
-                }
             } else {
                 cfg_set_labels("Connect failed\nCheck password, retry", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS "\nPortal: 192.168.4.1");
             }
@@ -227,26 +231,30 @@ void Config_LoopTask(void *arg) {
 }
 
 void UserApp_AppInit() {
-    sdcardPort = new CustomSDPort("/sdcard");
-    Adc_PortInit();
     Custom_ButtonInit();
-    Rtc_Setup(&I2cbus,0x51);
-    Rtc_SetTime(2026,1,5,14,30,30);
-    shtc3port = new Shtc3Port(I2cbus);
+    time_manager_init(&I2cbus);
+    sensor_manager_init(&I2cbus);
     ConfigGroups = xEventGroupCreate();
     espwifi_connect_stored();
 }
 
 void UserApp_UiInit() {
+    calendar_ui_data_t empty;
     setup_ui(&init_ui);
-    lv_label_set_text(init_ui.screen_label_8, "ON");
+    /* The GUI Guider dashboard is replaced wholesale. Deleting it here keeps the
+       generated screen file untouched and regenerable. */
+    lv_obj_del(init_ui.screen_cont_2);
+    init_ui.screen_cont_2 = NULL;
+    calendar_ui_create(init_ui.screen);
+    memset(&empty,0,sizeof(empty));
+    calendar_ui_refresh_all(&empty);
     lv_label_set_text(init_ui.screen_label_cfg_state, "Long-press BOOT\nto configure");
 }
 
 void UserApp_TaskInit() {
-    xTaskCreatePinnedToCore(Lvgl_UserTask, "Lvgl_UserTask", 5 * 1024, NULL, 2, NULL,1);
-    xTaskCreatePinnedToCore(Lvgl_SDcardTask, "Lvgl_SDcardTask", 4 * 1024, NULL, 2, NULL,1);
-    xTaskCreatePinnedToCore(Lvgl_BleScanTask, "Lvgl_BleScanTask", 4 * 1024, NULL, 2, NULL,1);
+    xTaskCreatePinnedToCore(Calendar_LoopTask, "Calendar_LoopTask", 5 * 1024, NULL, 2, NULL,1);
+    xTaskCreatePinnedToCore(Sensor_LoopTask, "Sensor_LoopTask", 4 * 1024, NULL, 2, NULL,1);
+    xTaskCreatePinnedToCore(Time_SyncTask, "Time_SyncTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(BOOT_LoopTask, "BOOT_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(KEY_LoopTask, "KEY_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Config_LoopTask, "Config_LoopTask", 5 * 1024, NULL, 2, NULL,1);

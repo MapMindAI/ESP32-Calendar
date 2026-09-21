@@ -4,19 +4,22 @@ idf_component_register(
     "ble_scan_bsp.c"
     "esp_wifi_bsp.c"
     "wifi_portal.c"
+    "time_manager.cpp"
+    "sensor_manager.cpp"
     PRIV_REQUIRES
     esp_wifi
     esp_event
+    esp_netif
     esp_http_server
     nvs_flash
     lwip
     ui_bsp
     espressif__avi_player 
     espressif__esp_new_jpeg
-    port_bsp
     esp_timer
     REQUIRES
     bt
+    port_bsp
     lvgl__lvgl
     INCLUDE_DIRS 
     "./")
