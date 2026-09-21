@@ -7,6 +7,7 @@
 #include "display_bsp.h"
 #include "lvgl_bsp.h"
 #include "user_app.h"
+#include "user_config.h"
 
 DisplayPort RlcdPort(12,11,5,40,41,400,300);
 
@@ -30,7 +31,7 @@ extern "C" void app_main(void)
 {
 	UserApp_AppInit();
 	RlcdPort.RLCD_Init();
-	Lvgl_PortInit(400,300,Lvgl_FlushCallback);
+	Lvgl_PortInit(400,300,RENDER_FPS,Lvgl_FlushCallback);
 	if(Lvgl_lock(-1)) {
 		UserApp_UiInit();
   	  	Lvgl_unlock();

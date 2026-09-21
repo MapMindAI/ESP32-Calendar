@@ -9,12 +9,12 @@ idf_component_register(
     "./i2c_equipment.cpp"
     "./adc_bsp.cpp"
     PRIV_REQUIRES 
-    driver
     SensorLib
     esp_timer
     codec_board 
     esp_adc
     REQUIRES
+    driver
     esp_driver_sdmmc
     fatfs
     INCLUDE_DIRS 

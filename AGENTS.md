@@ -25,6 +25,7 @@ by calendar functionality — see §10 for what is residue and what is real.
 ├── main/
 │   ├── main.cpp                # app_main: boot order + the LVGL→1-bit flush callback; owns the global DisplayPort
 │   ├── user_config.h           # Pin defines for LCD + I2C — NOT included anywhere today (see §4)
+│   ├── Kconfig.projbuild       # CALENDAR_TIMEZONE (POSIX TZ) and CALENDAR_NTP_SERVER
 │   └── idf_component.yml       # Managed deps: lvgl 8.4, espressif/avi_player, espressif/esp_new_jpeg
 ├── components/
 │   ├── port_bsp/               # Board-level hardware ports (C++ classes + C shims), no app logic
@@ -39,11 +40,14 @@ by calendar functionality — see §10 for what is residue and what is real.
 │   │   └── pcm/canon.pcm       # EMBED_FILES demo audio, reachable via CodecPort_GetPcmData()
 │   ├── app_bsp/                # Services layered on port_bsp
 │   │   ├── lvgl_bsp.*          # LVGL 8.4 port: tick timer, mutex, LVGL task (core 0, prio 5), two full-frame PSRAM buffers
-│   │   ├── esp_wifi_bsp.*      # STA connect + AP scan; credentials are hardcoded (see §10)
-│   │   └── ble_scan_bsp.*      # BLE scan; pushes discovered MACs onto ble_queue
+│   │   ├── esp_wifi_bsp.*      # STA connect from NVS + softAP/scan for the captive portal
+│   │   ├── wifi_portal.*       # Captive-portal DNS + HTTP setup page
+│   │   ├── time_manager.*      # POSIX system clock: seeded from the PCF85063, corrected by SNTP
+│   │   ├── sensor_manager.*    # Temperature/humidity behind one interface; range-checked and smoothed
+│   │   └── ble_scan_bsp.*      # BLE scan; pushes discovered MACs onto ble_queue (unused, see §10)
 │   ├── ui_bsp/
-│   │   ├── generated/          # GUI Guider output (screens, widgets, fonts, images) — regenerate, do not hand-edit
-│   │   └── custom/             # The hand-editable hooks: custom_init(), lv_conf_ext.h
+│   │   ├── generated/          # GUI Guider output (image + Wi-Fi setup views, fonts, images) — regenerate, do not hand-edit
+│   │   └── custom/             # Hand-written UI: calendar_ui.*, calendar_calc.*, fonts/, custom_init(), lv_conf_ext.h
 │   ├── user_app/               # The application: UserApp_AppInit / UserApp_UiInit / UserApp_TaskInit + every app task
 │   └── ExternLib/              # Vendored third-party components, checked into git — do not hand-edit
 │       ├── SensorLib/          # Lewis He's sensor library (PCF85063 RTC is the only part used)
@@ -194,11 +198,17 @@ partition that's already committed to 8 MB.
 
 Flag these rather than quietly preserving them; several are things a calendar build should remove:
 
-* `esp_wifi_bsp.c` hardcodes SSID `PDCN` and a plaintext password. Any real Wi-Fi work means moving
-  credentials to NVS/provisioning — never add another hardcoded credential.
-* `Rtc_SetTime(2026,1,5,14,30,30)` runs on **every** boot in `UserApp_AppInit()`, so the RTC never
-  actually keeps time. Fix this before building anything date-dependent on top of it.
-* `Lvgl_SDcardTask` writes `waveshare.com` to `/sdcard/sdcard.txt` and reads it back as a self-test.
+* Station credentials now live in the NVS namespace `wificfg`, written by the captive portal. The
+  only literals left in `esp_wifi_bsp.h` are the configuration hotspot's own SSID and passphrase,
+  which are printed on the setup screen by design — never add another hardcoded credential.
+* `ble_scan_bsp` and `adc_bsp` are compiled and linked but nothing calls them any more — the BLE
+  device count and the battery percentage went with the old dashboard. Bluetooth is still enabled in
+  `sdkconfig.defaults` and costs flash for nothing.
+* `sdcard_bsp` is linked but the card is no longer mounted: the `/sdcard` FAT mount existed only for
+  the `Lvgl_SDcardTask` self-test, which is gone.
+* The GUI Guider project still builds `screen_cont_2` (the old dashboard), which `UserApp_UiInit()`
+  deletes immediately after `setup_ui()`. Removing it from the GUI Guider project is the real fix;
+  so is dropping the now-unused 20 px and 100 px MiSans faces and the sensor/battery icons.
 * `espressif/avi_player` and `espressif/esp_new_jpeg` are declared in `main/idf_component.yml` and
   linked by `app_bsp`, but nothing calls them — dead weight, safe to drop if nothing needs video.
 * `SensorLib` is linked from `port_bsp` for the PCF85063 RTC alone.

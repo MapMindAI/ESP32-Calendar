@@ -1,19 +1,26 @@
 # User interface and interaction
 
 How the firmware presents information on the reflective LCD and what the two user buttons do.
-Describes the **current** (factory-demo derived) behaviour — see §7 for the parts a calendar build
-should change.
+Describes the **current** behaviour — see §7 for what is still factory-demo residue.
 
 Code map:
 
 | Concern | File |
 |---|---|
-| Widget tree, positions, styles, fonts | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
+| Dashboard widget tree, positions, styles | `components/ui_bsp/custom/calendar_ui.c` |
+| Date maths and the UI data model | `components/ui_bsp/custom/calendar_calc.c`, `calendar_calc.h` |
+| Dashboard fonts | `components/ui_bsp/custom/fonts/`, declared in `calendar_fonts.h` |
+| Image and Wi-Fi setup views | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
 | Widget handles (`lv_ui` struct) | `components/ui_bsp/generated/gui_guider.h` |
-| Hand-written UI hooks | `components/ui_bsp/custom/custom.c` |
-| View switching, label updates, all behaviour | `components/user_app/user_app.cpp` |
+| View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
+| System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
+| Temperature/humidity source | `components/app_bsp/sensor_manager.cpp` |
+| Battery source | `components/port_bsp/adc_bsp.cpp` |
 | Button decoding | `components/port_bsp/button_bsp.c` |
 | LVGL port, flush, refresh policy | `components/app_bsp/lvgl_bsp.cpp`, `main/main.cpp` |
+
+For source, validation and synchronization details, see
+[`data_sources.md`](data_sources.md).
 
 ## 1. Display characteristics that shape the design
 
@@ -37,9 +44,14 @@ GUI Guider's screen-animation helpers are not used.
 
 | Container | View | Initial state |
 |---|---|---|
-| `screen_cont_2` | Status dashboard (the home view) | visible |
+| `calendar_ui_root()` | Status dashboard (the home view) | visible |
 | `screen_cont_3` | Full-screen image | hidden |
 | `screen_cont_4` | Wi-Fi setup / configuration | hidden |
+
+The dashboard is **not** GUI Guider output. `UserApp_UiInit()` calls `setup_ui()`, deletes the
+generated `screen_cont_2` outright and builds `calendar_ui` in its place on the same screen. That
+keeps `setup_scr_screen.c` regenerable — the image and Wi-Fi setup views still come from it — while
+the dashboard is laid out in hand-written code where 42 calendar cells are cheap to express.
 
 The invariant is *exactly one container visible at a time*. Every switch must both clear the flag on
 the incoming container and set it on both others; the toggle helpers in `BOOT_LoopTask` and
@@ -47,49 +59,119 @@ the incoming container and set it on both others; the toggle helpers in `BOOT_Lo
 
 ## 3. The views
 
-### 3.1 Status dashboard — `screen_cont_2`
+### 3.1 Status dashboard — `calendar_ui`
 
-The home view. Left half is a large clock and the local self-test results; right half is sensors and
-radio scan counts.
+The home view: the clock and the date in a narrow left column, the current month across the right
+~60% of the width, a rule and a summary bar along the bottom.
 
 ```
  (0,0)                                                                  (400,0)
- ┌──────────────────────────────┬───────────────────────────────────────┐
- │  ███████████                 │        [icon]  25%      humidity      │
- │  ██  88   ██   minutes       │        [icon]  25°      temperature   │
- │  ███████████   100px white   │                                       │
- │                on black      │        BLE  :  30                     │
- │                              │        WIFI :  20                     │
- │  sdcard Test:                │                                       │
- │      No Card                 │            ███████████                │
- │  [bat]  100%                 │            ██  88   ██   seconds      │
- │  [bat]  ON                   │            ███████████                │
- └──────────────────────────────┴───────────────────────────────────────┘
+ ┌────────────────────┬─────────────────────────────────────────────────┐
+ │ 2026 · 09 · 21     │  SEPTEMBER 2026                                 │
+ │ MONDAY             │                                                 │
+ │                    │    M    T    W    T    F    S    S              │
+ │ 10:24              │         1    2    3    4    5    6              │
+ │                    │    7    8    9   10   11   12   13              │
+ │ 24.8°C │ 56% RH    │   14   15   16   17   18   19   20              │
+ │                    │  [21]  22   23   24   25   26   27              │
+ │ WEEK 39 · DAY 264  │   28   29   30                                  │
+ │                    │                                                 │
+ │ A NEW DAY BEGINS.  │                                                 │
+ ├────────────────────┴─────────────────────────────────────────────────┤
+ │  MONDAY · SEPTEMBER 21                                    264 / 365  │
+ └──────────────────────────────────────────────────────────────────────┘
  (0,300)                                                              (400,300)
 ```
 
+The column split is the constraint everything else follows from: the separator sits at x = 158, so
+the month grid owns the right 242 px (≈ 60 %) and the left column has 134 px to work in. That is
+what caps the clock at 48 px — `10:24` in the 72 px face is 196 px wide (see §5).
+
+Visual hierarchy, in order: the clock, then the month grid, then the environment row, then
+everything else. Nothing on this screen animates and nothing shows seconds.
+
 | Widget | Position (x, y) | Content | Written by | Cadence |
 |---|---|---|---|---|
-| `screen_label_3` | 8, 9 (190×135) | RTC **minute**, `%02d`, 100 px white on black | `Lvgl_UserTask` | 1 s |
-| `screen_label_4` | 201, 154 (190×135) | RTC **second**, `%02d`, 100 px white on black | `Lvgl_UserTask` | 1 s |
-| `screen_label_5` | 7, 164 | static `"sdcard Test: "` | — | — |
-| `screen_label_6` | 74, 192 | `"No Card"` / `"passed"` / `"failed"` | `Lvgl_SDcardTask` | once at boot |
-| `screen_img_1` + `screen_label_7` | 29, 221 / 73, 227 | battery icon + charge percentage | `Lvgl_UserTask` | 2 s |
-| `screen_img_2` + `screen_label_8` | 29, 258 / 73, 262 | second battery icon + `"ON"` | `UserApp_UiInit` | never updated |
-| `screen_img_3` + `screen_label_11` | 235, 10 / 272, 16 | humidity icon + SHTC3 relative humidity `%d%%` | `Lvgl_UserTask` | 5 s |
-| `screen_img_4` + `screen_label_12` | 235, 48 / 272, 53 | temperature icon + SHTC3 temperature `%d°` | `Lvgl_UserTask` | 5 s |
-| `screen_label_9` + `screen_label_13` | 205, 90 / 277, 92 | `"BLE : "` + count of BLE devices seen | `Lvgl_BleScanTask` | once at boot |
-| `screen_label_10` + `screen_label_14` | 205, 118 / 277, 118 | `"WIFI : "` + the STA IP once connected, `"OFFLINE"` if a stored network did not come up, `"SETUP"` if no credentials are stored | `Lvgl_BleScanTask`, `Config_LoopTask` | once at boot, again on connect |
+| `date_label` | 16, 18 | `%04d · %02d · %02d`, 16 px | `Calendar_LoopTask` | on date change |
+| `weekday_label` | 16, 42 | `MONDAY` … `SUNDAY`, 12 px | `Calendar_LoopTask` | on date change |
+| `time_label` | 15, 68 (133 wide) | `%02d:%02d`, 48 px, fixed width | `Calendar_LoopTask` | on minute change |
+| `temperature_label` | 16, 136 | `%.1f°C`, 16 px | `Sensor_LoopTask` | on threshold |
+| `env_separator` | 78, 137 (16 tall) | 1 px rule between the two readings | — | — |
+| `humidity_label` | right-aligned to 148, 136 | `%.0f%% RH`, 16 px | `Sensor_LoopTask` | on threshold |
+| `week_info_label` | 16, 180 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
+| `message_label` | 16, 210 | static `A NEW DAY BEGINS.`, 12 px | — | — |
+| `vertical_separator` | 158, 15 (220 tall) | column rule | — | — |
+| `month_label` | 168, 15 | `SEPTEMBER 2026`, 18 px | `Calendar_LoopTask` | on date change |
+| `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
+| `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
+| `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
+| `battery_label` | 16, 261 | `BATTERY %u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
+| `bottom_right_label` | right-aligned to 384, 261 | `%d / %d` day of year, 12 px | `Calendar_LoopTask` | on date change |
 
-The radio snapshot is produced once by `Lvgl_BleScanTask`, which is now BLE-only: if stored
-credentials exist it instead waits up to 20 s for the STA IP and reports that (Wi-Fi and BLE are not
-coexistent — see `AGENTS.md` §3). With no credentials, it scans BLE until it has 20 devices or goes
-3.5 s without a new one, shows `SETUP` on the Wi-Fi row, then tears BLE down and exits.
+The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
+neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
+
+#### Refresh policy
+
+`disp_drv.full_refresh = 1`, so any invalidated widget costs a whole 400 × 300 conversion and SPI
+transfer. Both tasks therefore compare before they write, and a label is only touched when the value
+behind it actually moved:
+
+| What | Read cadence | Written to the panel |
+|---|---|---|
+| Clock | system clock, 1 s | when the minute changes |
+| Date, weekday, week, month grid, bottom bar | system clock, 1 s | when the day changes (`calendar_ui_refresh_all`) |
+| Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 %, or after 10 minutes without a repaint |
+| Battery | ADC1 channel 3, 60 s | when the percentage changes |
+
+In practice the panel redraws once a minute.
+
+#### Empty states
+
+Neither the clock nor the sensor is trusted before it has answered:
+
+| Condition | Shown |
+|---|---|
+| system clock below year 2024 | `--:--` for the time, `WAITING FOR TIME` on the weekday line, everything else blank |
+| sensor never read, read failed, or out of range | `--.-°C` and `--% RH` |
+
+A zero is never displayed for a missing reading — `0°C` reads as real data.
+
+#### Where the values come from
+
+```
+PCF85063 ──▶ time_manager ──▶ POSIX system clock ──▶ Calendar_LoopTask ─┐
+SNTP     ──▶                         ▲                                 ├──▶ calendar_ui_data_t ──▶ calendar_ui
+                                     └── written back on sync          │
+SHTC3    ──▶ sensor_manager ──▶ Sensor_LoopTask ───────────────────────┤
+ADC1     ──▶ Battery_LoopTask ─────────────────────────────────────────┘
+```
+
+* `time_manager` (`components/app_bsp/time_manager.cpp`) sets `TZ` from `CONFIG_CALENDAR_TIMEZONE`,
+  seeds the system clock from the PCF85063 at boot, and writes the RTC back whenever SNTP syncs
+  against `CONFIG_CALENDAR_NTP_SERVER`. `Time_SyncTask` starts SNTP once the station has an IP —
+  from stored credentials at boot, or from the setup view later. With no network the clock still
+  runs from the RTC, and the display never depends on Wi-Fi being up.
+* `sensor_manager` (`components/app_bsp/sensor_manager.cpp`) is the only thing that knows the part is
+  an SHTC3. It range-checks every reading (−40…85 °C, 0…100 %RH) and smooths it (α = 0.2) so a
+  sensor dithering between 24.7 and 24.8 does not walk over the refresh threshold each minute.
+* `calendar_calc` (`components/ui_bsp/custom/calendar_calc.c`) turns a `struct tm` into the
+  `calendar_ui_data_t` the UI draws: weekday (Monday-first), ISO 8601 week number, day of year.
+  The UI reads that struct and nothing else.
+* `Battery_LoopTask` samples the existing ADC1 channel 3 driver once a minute and writes its
+  percentage to the bottom-left status label. The driver maps 3.0 V or below to 0%, 4.12 V or above
+  to 100%, with a linear value between those limits.
+
+#### LVGL performance monitor
+
+`CONFIG_LV_USE_PERF_MONITOR=y` enables LVGL's built-in performance overlay. It is created by LVGL on
+the system layer at the bottom right and reports its FPS and CPU usage; the application does not
+collect or format separate render statistics.
 
 ### 3.2 Image view — `screen_cont_3`
 
 A single full-bleed 400 × 300 image (`_ein_alpha_400x300`), nothing else. Reached by a long press on
-**KEY**, dismissed by another long press. This is the slot a calendar/photo page would take over.
+**KEY**, dismissed by another long press.
 
 ### 3.3 Wi-Fi setup view — `screen_cont_4`
 
@@ -189,7 +271,7 @@ Notes on the semantics as implemented:
                               ▼
                       ┌───────────────┐
                       │   dashboard   │◀─────────────┐
-                      │    cont_2     │              │
+                      │  calendar_ui  │              │
                       └───────┬───────┘              │
                    BOOT long  │  KEY long            │
                ┌──────────────┴──────────────┐       │
@@ -203,52 +285,87 @@ Notes on the semantics as implemented:
 
 ## 5. Typography and assets
 
-| Font | Size | Used for |
-|---|---|---|
-| `lv_font_MISANSMEDIUM_100` | 100 px | the two big clock digits |
-| `lv_font_MISANSMEDIUM_25` | 25 px | Wi-Fi setup title and state line |
-| `lv_font_MISANSMEDIUM_20` | 20 px | all dashboard labels |
-| `lv_font_MISANSMEDIUM_18` | 18 px | Wi-Fi setup portal/hint lines |
+The dashboard and the two inherited views use different font families, because they came from
+different places.
 
-Every font in the UI is a MiSans subset. **Any new Chinese string must use a MiSans face**, and the
-glyph must be in the subset GUI Guider generated — adding characters means regenerating the font,
-not just typing them. The 25 px subset holds only the 13 CJK glyphs the audio
-strings needed (`等待操作正在录音完成播放音乐`), which is why the setup view is English-only; the
-Chinese half of its strings lives in the phone-facing portal page instead.
+| Font | Size | Bpp | Used for |
+|---|---|---|---|
+| `lv_font_calendar_clock_48` | 48 px | 1 | the clock; digits, `:` and `-` only |
+| `lv_font_calendar_18` | 18 px | 1 | month heading |
+| `lv_font_calendar_16` | 16 px | 1 | date line, temperature and humidity, calendar grid and its header |
+| `lv_font_calendar_12` | 12 px | 1 | weekday, week counter, message, bottom bar |
+| `lv_font_MISANSMEDIUM_25` | 25 px | 4 | Wi-Fi setup title and state line |
+| `lv_font_MISANSMEDIUM_20` | 20 px | 4 | — (unused since the dashboard was replaced) |
+| `lv_font_MISANSMEDIUM_18` | 18 px | 4 | Wi-Fi setup portal/hint lines |
+| `lv_font_MISANSMEDIUM_100` | 100 px | 4 | — (unused since the dashboard was replaced) |
 
-Images are LVGL C arrays under `components/ui_bsp/generated/images/`: two 30×30 sensor icons
-(`_wendu` temperature, `_shidu` humidity), a 30×30 battery icon used twice and a 400×300 full-screen
-image. All are 1-bit-friendly line art; photographic content will posterize badly at the flush
-threshold.
+The `lv_font_calendar_*` faces are DejaVu Sans Condensed Bold subsets generated with `lv_font_conv`
+and checked in under `components/ui_bsp/custom/fonts/`. They are **1 bpp on purpose**: the flush
+callback thresholds every pixel, so a 4 bpp face's anti-aliased edges are discarded at runtime and
+the extra bitmap data is pure flash cost. Condensed, because every size here is width-constrained.
+
+The clock size is set by the column split, not by taste: `10:24` is 2.86 × the point size wide in
+this face, so the 134 px left column allows 48 px and no more. Widening the clock means narrowing
+the month grid — the two trade against each other directly. The exact `lv_font_conv` command line
+sits in the header comment of each generated `.c` file; rerun it at a different size to move that
+trade. The clock face carries digits, `:` and `-` only — enough for `10:24` and `--:--`.
+
+`lv_font_calendar_*` covers ASCII plus U+00B0 (`°`) and U+00B7 (`·`), and **no CJK**: the dashboard
+is English-only, so the bilingual rule in `AGENTS.md` §9 applies to the setup view's strings, not to
+this screen. Adding a Chinese label here means generating a CJK subset first.
+
+The MiSans faces remain GUI Guider output and still serve the setup view. Its 25 px subset holds
+only the 13 CJK glyphs the removed audio strings needed (`等待操作正在录音完成播放音乐`), which is why
+that view is English-only; the Chinese half of its strings lives in the phone-facing portal page.
+The 20 px and 100 px MiSans faces have no user left and are candidates for removal from the GUI
+Guider project.
+
+Images are LVGL C arrays under `components/ui_bsp/generated/images/`. Only `_ein_alpha_400x300` (the
+image view) is still referenced; the two 30 × 30 sensor icons, the battery icon and `_3_alpha_200x200`
+went with the old dashboard. The new dashboard is text and 1 px rules only — no icons, no gauges, no
+weather art.
 
 ## 6. Adding to the UI
 
-1. Lay the widget out in the GUI Guider project and regenerate `components/ui_bsp/generated/`.
-   Hand-edits there are lost on the next regeneration.
-2. Drive it from `user_app.cpp`. Keep the split: generated code builds the tree, `user_app.cpp` owns
-   all text and visibility changes.
-3. **Take the LVGL lock.** Every `lv_*` call from an app task must sit between `Lvgl_lock(-1)` and
-   `Lvgl_unlock()` — the LVGL task runs on core 0 while app tasks run on core 1. Several inherited
-   tasks in `user_app.cpp` update labels without the lock; that is a bug to fix as you touch them, not
-   a pattern to copy (see `AGENTS.md` §3).
-4. Respect the refresh cost: pick the slowest cadence that looks right, and update several labels in
-   one locked section rather than taking the lock per label.
+Which half of the UI you are in decides the workflow:
+
+* **Dashboard** — edit `components/ui_bsp/custom/calendar_ui.c` directly. Layout constants live at
+  the top of that file; every widget is built by `calendar_ui_create()` and written by one of the
+  `calendar_ui_update_*` / `calendar_ui_refresh_all` entry points. Nothing else may touch those
+  widgets.
+* **Image or Wi-Fi setup view** — lay the widget out in the GUI Guider project and regenerate
+  `components/ui_bsp/generated/`. Hand-edits there are lost on the next regeneration.
+
+Then, in both cases:
+
+1. Drive it from `user_app.cpp`. Keep the split: `calendar_ui.c` owns the widget tree and the
+   formatting, `user_app.cpp` owns *when* things are written.
+2. **Take the LVGL lock.** `ui_bsp` sits below `app_bsp` and cannot call `Lvgl_lock()` itself, so
+   every `calendar_ui_*` call must sit between `Lvgl_lock(-1)` and `Lvgl_unlock()` in the calling
+   task — the LVGL task runs on core 0 while app tasks run on core 1 (see `AGENTS.md` §3).
+3. Respect the refresh cost: compare against what is already displayed and write only on a real
+   change, as both dashboard tasks do. A repaint is a full 400 × 300 SPI transfer.
+4. Feed the dashboard through `calendar_ui_data_t`, not through a sensor or clock handle. If a new
+   value needs displaying, add a field there and a manager under `app_bsp` to produce it.
 5. If you add a view, extend the hide-everything-else lists in both button tasks.
 
 ## 7. Known rough edges
 
-Inherited from the factory demo, or left by the setup-view change; flag rather than preserve:
+Inherited from the factory demo, or left by the dashboard rewrite; flag rather than preserve:
 
-* The clock shows **minute and second**, not hour and minute, and the two digit blocks are placed
-  diagonally rather than as one `MM:SS` field. A calendar needs date, weekday and hour:minute.
-* `screen_label_8` is set once to `"ON"` and never touched again, and `screen_img_2` reuses the
-  battery icon next to it — the row has no defined meaning.
-* The BLE device count is a one-shot boot diagnostic displayed permanently.
-* `Lvgl_UserTask` schedules with equality tests (`times - adc_time == 10`). It works only because the
-  counter increments by exactly one per iteration; use `>=` if you change that loop.
+* The 20 px and 100 px MiSans faces and every image except `_ein_alpha_400x300` are still compiled in
+  with no user. They will disappear on the next GUI Guider regeneration only if they are removed from
+  the project first.
+* `screen_cont_2` is still built by `setup_scr_screen.c` and then deleted at init — a few hundred
+  bytes of widget churn at boot. Removing the container from the GUI Guider project is the real fix.
 * The setup view is English-only, because the generated MiSans subsets do not cover the Chinese it
   needs (§5). Regenerate the fonts in GUI Guider if the bilingual policy has to hold there.
-* `Rtc_SetTime(2026,1,5,14,30,30)` still runs on every boot in `UserApp_AppInit()`, so the RTC never
-  keeps time across a power cycle.
 * The codec hardware, `canon.pcm` and the 288 KB PSRAM audio buffer are no longer used by anything —
   `CodecPort` is not instantiated; only the `codec_bsp` component remains linked.
+* `ble_scan_bsp` and `adc_bsp` are still compiled and linked but no longer called: the BLE device
+  count and the battery percentage both went with the old dashboard. Bluetooth is still enabled in
+  `sdkconfig.defaults` and costs flash for nothing.
+* The SD card is no longer mounted. `CustomSDPort` and the `/sdcard` FAT mount went with the
+  `sdcard Test:` self-test row; `sdcard_bsp` and `fatfs` remain linked.
+* Battery state is not displayed anywhere. On a device that runs from an 18650 that is a real gap,
+  but the dashboard layout has no slot for it.

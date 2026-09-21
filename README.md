@@ -4,15 +4,20 @@ ESP-IDF firmware for a desk calendar built on the **Waveshare ESP32-S3-RLCD-4.2*
 board with a 4.2" fully reflective, backlight-free 300×400 monochrome LCD, an RTC, a temperature
 and humidity sensor, an audio codec pair and an 18650 battery holder.
 
-The tree currently starts from Waveshare's factory self-test demo (the CMake project is still named
-`03_Fac`): it boots, cycles a few LVGL screens, and exercises each attached peripheral in turn —
-clock, battery level, temperature/humidity, SD card read-back and BLE device count. Wi-Fi is now a
-real feature rather than a demo: the device is configured over a captive portal and stores its
-credentials in NVS (see **Wi-Fi setup** below). Calendar functionality is being built on top of that
-scaffolding.
+The home screen is a calendar dashboard: the current month fills the right ~60 % as a Monday-first
+grid with today inverted, and a left column carries the `HH:MM` clock, the date and weekday, the
+temperature and humidity from the on-board SHTC3, and an ISO week / day-of-year summary. The clock runs from POSIX system time, seeded from the
+PCF85063 RTC at boot and corrected by SNTP whenever the network is up, so the display never depends
+on Wi-Fi. Wi-Fi itself is configured over a captive portal and the credentials are stored in NVS (see
+**Wi-Fi setup** below).
 
-* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (UI generated with NXP GUI Guider)
+The tree still starts from Waveshare's factory self-test demo (the CMake project is named `03_Fac`)
+and two of its screens survive behind long-presses; see **[AGENTS.md](AGENTS.md)** §10 for what is
+still residue.
+
+* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (dashboard hand-written; the remaining screens generated with NXP GUI Guider)
 * Flash layout: single 8 MB factory app, no OTA (`partitions.csv`)
+* Timezone and NTP server: `idf.py menuconfig` → **ESP32 Calendar** (`CONFIG_CALENDAR_TIMEZONE`, default `CST-8`)
 * Contributor rules, architecture notes and known rough edges: **[AGENTS.md](AGENTS.md)**
 
 ## Quick start
@@ -70,9 +75,9 @@ with `idf.py -p <port> erase-flash`.
 | PCF85063 RTC | I2C0 | addr `0x51` (via SensorLib) | `components/port_bsp/i2c_equipment.cpp` |
 | ES8311 codec (out) | I2C0 + I2S | addr `0x18`; MCLK 16, BCLK 9, WS 45, DOUT 8, PA enable 46 | `components/port_bsp/codec_bsp.cpp` |
 | ES7210 ADC (in) | I2C0 + I2S | addr `0x40`; DIN 10 | `components/port_bsp/codec_bsp.cpp` |
-| microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — mounted at `/sdcard` | `components/port_bsp/sdcard_bsp.cpp` |
+| microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — driver present, not mounted by the firmware | `components/port_bsp/sdcard_bsp.cpp` |
 | BOOT / KEY buttons | GPIO, active-low | GPIO 0 / GPIO 18 — single, double and long press | `components/port_bsp/button_bsp.c` |
-| Battery sense | ADC1 | channel 3 — voltage and percentage | `components/port_bsp/adc_bsp.cpp` |
+| Battery sense | ADC1 | channel 3 — percentage shown in the dashboard | `components/port_bsp/adc_bsp.cpp` |
 | Wi-Fi (STA + config hotspot) | on-chip radio | WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
 
 The codec and I2S pin map also lives in the `S3_RLCD_4_2` entry of
@@ -90,8 +95,8 @@ driver. `full_refresh` is enabled, so every flush repaints and re-transmits the 
 main/            app_main, boot order, LVGL→1-bit flush callback, pin defines
 components/
   port_bsp/      hardware ports: display, I2C, sensors/RTC, codec, SD, buttons, ADC
-  app_bsp/       LVGL port, Wi-Fi STA + captive-portal config, BLE scan
-  ui_bsp/        GUI Guider output (generated/) plus hand-editable hooks (custom/)
+  app_bsp/       LVGL port, Wi-Fi STA + captive-portal config, time (RTC+SNTP) and sensor managers
+  ui_bsp/        hand-written dashboard (custom/) plus GUI Guider output (generated/)
   user_app/      application entry points and FreeRTOS tasks
   ExternLib/     vendored third-party components (SensorLib, codec_board)
 doc/             project documentation
@@ -104,8 +109,10 @@ rules for generated and vendored code.
 
 ### This project
 
-* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the four views and every
-  widget on them, button gestures and what they do, fonts and image assets
+* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the three views and every
+  widget on them, the refresh policy, button gestures, fonts and image assets
+* **[doc/data_sources.md](doc/data_sources.md)** — RTC/SNTP time synchronization, SHTC3 readings,
+  validation, smoothing and dashboard update cadence
 * **[AGENTS.md](AGENTS.md)** — contributor rules, annotated layout, boot and concurrency contract,
   known rough edges inherited from the factory demo
 

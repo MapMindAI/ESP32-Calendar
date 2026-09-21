@@ -1,0 +1,18 @@
+menu "ESP32 Calendar"
+
+config CALENDAR_TIMEZONE
+    string "POSIX timezone string"
+    default "CST-8"
+    help
+        POSIX TZ string used for every date and time on the dashboard, for
+        example "CST-8" for UTC+8 or "GMT0BST,M3.5.0/1,M10.5.0" for the UK.
+        The sign is inverted relative to UTC offsets, as POSIX requires.
+
+config CALENDAR_NTP_SERVER
+    string "NTP server"
+    default "pool.ntp.org"
+    help
+        Server SNTP synchronises the system clock against once the station has
+        an IP address.
+
+endmenu
