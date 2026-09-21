@@ -54,12 +54,14 @@ static lv_obj_t *time_label;
 static lv_obj_t *temperature_label;
 static lv_obj_t *humidity_label;
 static lv_obj_t *week_info_label;
-static lv_obj_t *message_label;
 static lv_obj_t *month_label;
-static lv_obj_t *weekday_header[CAL_COLS];
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
 static lv_obj_t *bottom_left_label;
 static lv_obj_t *bottom_right_label;
+
+static int grid_year;
+static int grid_month;
+static int grid_day;
 
 static lv_point_t vertical_separator_points[2];
 static lv_point_t horizontal_separator_points[2];
@@ -135,6 +137,9 @@ static lv_obj_t *make_line(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_poin
 /* Today is the only cell that inverts. */
 static void set_day_highlight(lv_obj_t *cell, bool today)
 {
+    if (cell == NULL) {
+        return;
+    }
     if (today) {
         lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_color(cell, lv_color_black(), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -171,7 +176,7 @@ void calendar_ui_create(lv_obj_t *parent)
 
     week_info_label = make_label(left_panel, 2, 166, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
 #if SHOW_DAILY_MESSAGE
-    message_label = make_label(left_panel, 2, 196, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, DAILY_MESSAGE);
+    make_label(left_panel, 2, 196, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, DAILY_MESSAGE);
 #endif
 
     make_line(root, SEP_V_X, SEP_V_Y, vertical_separator_points, 0, SEP_V_H);
@@ -181,9 +186,9 @@ void calendar_ui_create(lv_obj_t *parent)
     month_label = make_label(right_panel, 0, 0, RIGHT_W, &lv_font_calendar_18, LV_TEXT_ALIGN_LEFT, 0, "");
 
     for (int col = 0; col < CAL_COLS; col++) {
-        weekday_header[col] = make_label(right_panel, CAL_GRID_X + col * CAL_CELL_W, CAL_HEADER_Y,
-                                         CAL_CELL_W, &lv_font_calendar_16, LV_TEXT_ALIGN_CENTER, 0,
-                                         weekday_initials[col]);
+        make_label(right_panel, CAL_GRID_X + col * CAL_CELL_W, CAL_HEADER_Y,
+                   CAL_CELL_W, &lv_font_calendar_16, LV_TEXT_ALIGN_CENTER, 0,
+                   weekday_initials[col]);
     }
 
     for (int row = 0; row < CAL_ROWS; row++) {
@@ -255,6 +260,20 @@ static void clear_calendar_grid(void)
             set_day_highlight(calendar_days[row][col], false);
         }
     }
+    grid_year = 0;
+    grid_month = 0;
+    grid_day = 0;
+}
+
+static lv_obj_t *calendar_day_cell(int year, int month, int day)
+{
+    int index = calendar_calc_weekday(year, month, 1) + day - 1;
+    int row = index / CAL_COLS;
+
+    if (row >= CAL_ROWS) {
+        return NULL;
+    }
+    return calendar_days[row][index % CAL_COLS];
 }
 
 /* Monday-first grid of the current month only: no leading or trailing days. */
@@ -263,6 +282,15 @@ static void draw_calendar_grid(const calendar_ui_data_t *data)
     char buf[12];
     int first_weekday = calendar_calc_weekday(data->year, data->month, 1);
     int days          = calendar_calc_days_in_month(data->year, data->month);
+
+    if (data->year == grid_year && data->month == grid_month) {
+        if (data->day != grid_day) {
+            set_day_highlight(calendar_day_cell(grid_year, grid_month, grid_day), false);
+            set_day_highlight(calendar_day_cell(data->year, data->month, data->day), true);
+            grid_day = data->day;
+        }
+        return;
+    }
 
     clear_calendar_grid();
     for (int day = 1; day <= days; day++) {
@@ -277,6 +305,9 @@ static void draw_calendar_grid(const calendar_ui_data_t *data)
         lv_label_set_text(calendar_days[row][col], buf);
         set_day_highlight(calendar_days[row][col], day == data->day);
     }
+    grid_year = data->year;
+    grid_month = data->month;
+    grid_day = data->day;
 }
 
 void calendar_ui_refresh_all(const calendar_ui_data_t *data)

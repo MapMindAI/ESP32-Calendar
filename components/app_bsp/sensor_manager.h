@@ -22,9 +22,6 @@ esp_err_t sensor_manager_init(I2cMasterBus *bus);
    last good reading, or zero if there has never been one. */
 esp_err_t sensor_manager_read(environment_data_t *data);
 
-/* True once at least one reading has passed the range check. */
-bool sensor_manager_is_valid(void);
-
 /* The last smoothed reading, without touching the bus. For the tasks that need
    a value to repaint with but must not stall on I2C. */
 void sensor_manager_last(environment_data_t *data);

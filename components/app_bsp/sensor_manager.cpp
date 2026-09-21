@@ -70,11 +70,6 @@ esp_err_t sensor_manager_read(environment_data_t *data)
     return ESP_OK;
 }
 
-bool sensor_manager_is_valid(void)
-{
-    return filtered.valid;
-}
-
 void sensor_manager_last(environment_data_t *data)
 {
     if (data != NULL) {

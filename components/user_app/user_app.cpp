@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <string.h>
 #include <math.h>
 #include <freertos/FreeRTOS.h>
 #include <esp_log.h>
@@ -35,9 +34,10 @@ static bool is_CfgViewOn = false;
 /* Clock and calendar. Polls the system clock once a second and writes a widget
    only on a minute or date change. */
 void Calendar_LoopTask(void *arg) {
-    calendar_ui_data_t data;
     environment_data_t environment;
     struct tm local;
+    int last_year = -1;
+    int last_month = -1;
     int last_minute = -1;
     int last_day = -1;
     bool last_valid = false;
@@ -45,32 +45,37 @@ void Calendar_LoopTask(void *arg) {
         bool valid = time_manager_get_local(&local);
         if(!valid) {
             last_valid = false;
+            last_year = -1;
+            last_month = -1;
             last_minute = -1;
             last_day = -1;
             vTaskDelay(pdMS_TO_TICKS(1000));
             continue;
         }
-        memset(&data,0,sizeof(data));
-        calendar_calc_fill(&data,&local);
-        sensor_manager_last(&environment);
-        data.temperature_c = environment.temperature_c;
-        data.humidity_percent = environment.humidity_percent;
-        data.environment_valid = environment.valid;
+        if(!last_valid || local.tm_year != last_year || local.tm_mon != last_month ||
+           local.tm_mday != last_day) {
+            calendar_ui_data_t data = {};
 
-        if(!last_valid || data.day != last_day) {
+            calendar_calc_fill(&data,&local);
+            sensor_manager_last(&environment);
+            data.temperature_c = environment.temperature_c;
+            data.humidity_percent = environment.humidity_percent;
+            data.environment_valid = environment.valid;
             if(Lvgl_lock(-1)) {
                 calendar_ui_refresh_all(&data);
                 Lvgl_unlock();
             }
             last_valid = true;
-            last_day = data.day;
-            last_minute = data.minute;
-        } else if(data.minute != last_minute) {
+            last_year = local.tm_year;
+            last_month = local.tm_mon;
+            last_day = local.tm_mday;
+            last_minute = local.tm_min;
+        } else if(local.tm_min != last_minute) {
             if(Lvgl_lock(-1)) {
-                calendar_ui_update_time(data.hour,data.minute,true);
+                calendar_ui_update_time(local.tm_hour, local.tm_min, true);
                 Lvgl_unlock();
             }
-            last_minute = data.minute;
+            last_minute = local.tm_min;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -122,6 +127,14 @@ void Time_SyncTask(void *arg) {
     vTaskDelete(NULL);
 }
 
+static void show_view(lv_obj_t *view)
+{
+    lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(view, LV_OBJ_FLAG_HIDDEN);
+}
+
 void BOOT_LoopTask(void *arg) {
     for(;;) {
         EventBits_t even = xEventGroupWaitBits(BootButtonGroups,(0x01 | 0x02 | 0x04),pdTRUE,pdFALSE,pdMS_TO_TICKS(2000));
@@ -129,18 +142,14 @@ void BOOT_LoopTask(void *arg) {
             if(0 == is_CfgViewOn) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(init_ui.screen_cont_4,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
+                    show_view(init_ui.screen_cont_4);
                     Lvgl_unlock();
                 }
                 xEventGroupSetBits(ConfigGroups,CFG_REQ_START);
             } else {
                 is_CfgViewOn = 0;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(calendar_ui_root(),LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
+                    show_view(calendar_ui_root());
                     Lvgl_unlock();
                 }
                 xEventGroupSetBits(ConfigGroups,CFG_REQ_STOP);
@@ -157,17 +166,13 @@ void KEY_LoopTask(void *arg) {
             if(0 == is_cont3en) {
                 is_cont3en = 1;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(init_ui.screen_cont_3,LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
+                    show_view(init_ui.screen_cont_3);
                     Lvgl_unlock();
                 }
             } else {
                 is_cont3en = 0;
                 if(Lvgl_lock(-1)) {
-                    lv_obj_clear_flag(calendar_ui_root(),LV_OBJ_FLAG_HIDDEN); 
-                    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
+                    show_view(calendar_ui_root());
                     Lvgl_unlock();
                 }
             }
@@ -239,14 +244,13 @@ void UserApp_AppInit() {
 }
 
 void UserApp_UiInit() {
-    calendar_ui_data_t empty;
+    calendar_ui_data_t empty = {};
     setup_ui(&init_ui);
     /* The GUI Guider dashboard is replaced wholesale. Deleting it here keeps the
        generated screen file untouched and regenerable. */
     lv_obj_del(init_ui.screen_cont_2);
     init_ui.screen_cont_2 = NULL;
     calendar_ui_create(init_ui.screen);
-    memset(&empty,0,sizeof(empty));
     calendar_ui_refresh_all(&empty);
     lv_label_set_text(init_ui.screen_label_cfg_state, "Long-press BOOT\nto configure");
 }

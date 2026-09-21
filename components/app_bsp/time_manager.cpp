@@ -1,4 +1,3 @@
-#include <string.h>
 #include <sys/time.h>
 
 #include <esp_log.h>
@@ -38,7 +37,7 @@ static void on_sntp_sync(struct timeval *tv)
 esp_err_t time_manager_init(I2cMasterBus *bus)
 {
     rtcTimeStruct_t rtc_time;
-    struct tm       local;
+    struct tm       local = {};
     struct timeval  tv;
 
     if (bus == NULL) {
@@ -56,7 +55,6 @@ esp_err_t time_manager_init(I2cMasterBus *bus)
         return ESP_ERR_INVALID_STATE;
     }
 
-    memset(&local, 0, sizeof(local));
     local.tm_year  = rtc_time.year - 1900;
     local.tm_mon   = rtc_time.month - 1;
     local.tm_mday  = rtc_time.day;
@@ -91,16 +89,6 @@ void time_manager_start_sntp(void)
     }
     sntp_started = true;
     ESP_LOGI(TAG, "SNTP started against %s", CONFIG_CALENDAR_NTP_SERVER);
-}
-
-bool time_manager_is_valid(void)
-{
-    struct tm local;
-    time_t    now = 0;
-
-    time(&now);
-    localtime_r(&now, &local);
-    return (local.tm_year + 1900) >= TIME_VALID_MIN_YEAR;
 }
 
 bool time_manager_get_local(struct tm *out)
