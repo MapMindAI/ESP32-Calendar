@@ -67,8 +67,8 @@ void Lvgl_PortInit(int width, int height, uint32_t render_fps, DispFlushCb flush
 
     lv_disp_drv_init(&disp_drv);
   	disp_drv.hor_res = width;
-  	disp_drv.ver_res = height;
-  	disp_drv.flush_cb = flush_cb;
+    disp_drv.ver_res = height;
+    disp_drv.flush_cb = flush_cb;
 	disp_drv.full_refresh = 1;
   	disp_drv.draw_buf = &disp_buf;
   	lv_disp_drv_register(&disp_drv);

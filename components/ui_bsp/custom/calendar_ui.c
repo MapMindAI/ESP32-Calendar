@@ -56,7 +56,7 @@ static lv_obj_t *humidity_label;
 static lv_obj_t *week_info_label;
 static lv_obj_t *month_label;
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
-static lv_obj_t *bottom_left_label;
+static lv_obj_t *battery_label;
 static lv_obj_t *bottom_right_label;
 
 static int grid_year;
@@ -207,7 +207,7 @@ void calendar_ui_create(lv_obj_t *parent)
 
     lv_obj_t *bottom_bar = make_container(root, BAR_X, BAR_Y, BAR_W, BAR_H);
 
-    bottom_left_label  = make_label(bottom_bar, 0, 9, 200, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 1, "");
+    battery_label      = make_label(bottom_bar, 0, 9, 200, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 1, "BATTERY --%");
     bottom_right_label = make_label(bottom_bar, BAR_W - 200, 9, 200, &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "");
 }
 
@@ -250,6 +250,17 @@ void calendar_ui_update_environment(float temperature_c, float humidity_percent,
     snprintf(hum_buf, sizeof(hum_buf), "%.0f%% RH", humidity_percent);
     lv_label_set_text(temperature_label, temp_buf);
     lv_label_set_text(humidity_label, hum_buf);
+}
+
+void calendar_ui_update_battery(uint8_t percent)
+{
+    char buf[20];
+
+    if (battery_label == NULL) {
+        return;
+    }
+    snprintf(buf, sizeof(buf), "BATTERY %u%%", percent);
+    lv_label_set_text(battery_label, buf);
 }
 
 static void clear_calendar_grid(void)
@@ -326,7 +337,6 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
         lv_label_set_text(weekday_label, "WAITING FOR TIME");
         lv_label_set_text(week_info_label, "");
         lv_label_set_text(month_label, "");
-        lv_label_set_text(bottom_left_label, "");
         lv_label_set_text(bottom_right_label, "");
         clear_calendar_grid();
         return;
@@ -341,10 +351,6 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
 
     snprintf(buf, sizeof(buf), "%s %04d", calendar_calc_month_name(data->month), data->year);
     lv_label_set_text(month_label, buf);
-
-    snprintf(buf, sizeof(buf), "%s · %s %d", calendar_calc_weekday_name(data->weekday),
-             calendar_calc_month_name(data->month), data->day);
-    lv_label_set_text(bottom_left_label, buf);
 
     snprintf(buf, sizeof(buf), "%d / %d", data->day_of_year, data->days_of_year);
     lv_label_set_text(bottom_right_label, buf);

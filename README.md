@@ -77,7 +77,7 @@ with `idf.py -p <port> erase-flash`.
 | ES7210 ADC (in) | I2C0 + I2S | addr `0x40`; DIN 10 | `components/port_bsp/codec_bsp.cpp` |
 | microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — driver present, not mounted by the firmware | `components/port_bsp/sdcard_bsp.cpp` |
 | BOOT / KEY buttons | GPIO, active-low | GPIO 0 / GPIO 18 — single, double and long press | `components/port_bsp/button_bsp.c` |
-| Battery sense | ADC1 | channel 3 — driver present, not read by the firmware | `components/port_bsp/adc_bsp.cpp` |
+| Battery sense | ADC1 | channel 3 — percentage shown in the dashboard | `components/port_bsp/adc_bsp.cpp` |
 | Wi-Fi (STA + config hotspot) | on-chip radio | WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
 
 The codec and I2S pin map also lives in the `S3_RLCD_4_2` entry of

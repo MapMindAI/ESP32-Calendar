@@ -96,13 +96,23 @@ The environment row is redrawn when validity changes, temperature changes by
 at least 0.2 °C, humidity changes by at least 1 %RH, or ten minutes have
 passed without an environment redraw.
 
+## Battery percentage
+
+`Adc_PortInit()` configures ADC1 channel 3 during application initialization. `Battery_LoopTask`
+samples the existing `Adc_GetBatteryLevel()` helper once per minute and updates the dashboard's
+bottom-left label only when the integer percentage changes. The helper maps 3.0 V or below to 0%,
+4.12 V or above to 100%, and interpolates linearly between those voltages.
+
 ## Rendering implication
 
 The panel uses full refresh: every LVGL invalidation converts and transfers the
 entire 400 × 300 frame. `RENDER_FPS` in `main/user_config.h` caps the active
-LVGL render cadence (30 FPS by default); it does not cause periodic panel
+LVGL render cadence; it does not cause periodic panel
 transfers while the UI is idle. The date/time and sensor cadences above avoid
 unnecessary invalidations.
+
+`CONFIG_LV_USE_PERF_MONITOR=y` also enables LVGL's own bottom-right overlay, which reports LVGL's
+FPS and CPU usage. No application-side performance counters are used.
 
 ## Relevant code
 
@@ -110,6 +120,7 @@ unnecessary invalidations.
 |---|---|
 | RTC seed, timezone, SNTP and RTC write-back | `components/app_bsp/time_manager.cpp` |
 | SHTC3 reads, validation and smoothing | `components/app_bsp/sensor_manager.cpp` |
+| Battery voltage and percentage conversion | `components/port_bsp/adc_bsp.cpp` |
 | Polling tasks and UI update thresholds | `components/user_app/user_app.cpp` |
 | Calendar-derived values | `components/ui_bsp/custom/calendar_calc.c` |
 | Dashboard rendering | `components/ui_bsp/custom/calendar_ui.c` |

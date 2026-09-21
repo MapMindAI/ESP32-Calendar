@@ -9,6 +9,7 @@
 #include "calendar_ui.h"
 #include "calendar_calc.h"
 #include "i2c_bsp.h"
+#include "adc_bsp.h"
 #include "time_manager.h"
 #include "sensor_manager.h"
 #include "esp_wifi_bsp.h"
@@ -28,6 +29,7 @@ EventGroupHandle_t ConfigGroups;
 #define TEMPERATURE_REFRESH_THRESHOLD 0.2f
 #define HUMIDITY_REFRESH_THRESHOLD    1.0f
 #define ENVIRONMENT_MAX_REFRESH_MIN   10
+#define BATTERY_READ_INTERVAL_MS       60000
 
 static bool is_CfgViewOn = false;
 
@@ -78,6 +80,21 @@ void Calendar_LoopTask(void *arg) {
             last_minute = local.tm_min;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void Battery_LoopTask(void *arg) {
+    int shown_level = -1;
+
+    for(;;) {
+        uint8_t level = Adc_GetBatteryLevel();
+
+        if(level != shown_level && Lvgl_lock(-1)) {
+            calendar_ui_update_battery(level);
+            Lvgl_unlock();
+            shown_level = level;
+        }
+        vTaskDelay(pdMS_TO_TICKS(BATTERY_READ_INTERVAL_MS));
     }
 }
 
@@ -237,6 +254,7 @@ void Config_LoopTask(void *arg) {
 
 void UserApp_AppInit() {
     Custom_ButtonInit();
+    Adc_PortInit();
     time_manager_init(&I2cbus);
     sensor_manager_init(&I2cbus);
     ConfigGroups = xEventGroupCreate();
@@ -258,6 +276,7 @@ void UserApp_UiInit() {
 void UserApp_TaskInit() {
     xTaskCreatePinnedToCore(Calendar_LoopTask, "Calendar_LoopTask", 5 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Sensor_LoopTask, "Sensor_LoopTask", 4 * 1024, NULL, 2, NULL,1);
+    xTaskCreatePinnedToCore(Battery_LoopTask, "Battery_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Time_SyncTask, "Time_SyncTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(BOOT_LoopTask, "BOOT_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(KEY_LoopTask, "KEY_LoopTask", 4 * 1024, NULL, 2, NULL,1);

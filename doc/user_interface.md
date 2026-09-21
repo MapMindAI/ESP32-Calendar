@@ -15,6 +15,7 @@ Code map:
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
 | System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
 | Temperature/humidity source | `components/app_bsp/sensor_manager.cpp` |
+| Battery source | `components/port_bsp/adc_bsp.cpp` |
 | Button decoding | `components/port_bsp/button_bsp.c` |
 | LVGL port, flush, refresh policy | `components/app_bsp/lvgl_bsp.cpp`, `main/main.cpp` |
 
@@ -104,7 +105,7 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
 | `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
-| `bottom_left_label` | 16, 261 | `MONDAY · SEPTEMBER 21`, 12 px | `Calendar_LoopTask` | on date change |
+| `battery_label` | 16, 261 | `BATTERY %u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 | `bottom_right_label` | right-aligned to 384, 261 | `%d / %d` day of year, 12 px | `Calendar_LoopTask` | on date change |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
@@ -121,6 +122,7 @@ behind it actually moved:
 | Clock | system clock, 1 s | when the minute changes |
 | Date, weekday, week, month grid, bottom bar | system clock, 1 s | when the day changes (`calendar_ui_refresh_all`) |
 | Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 %, or after 10 minutes without a repaint |
+| Battery | ADC1 channel 3, 60 s | when the percentage changes |
 
 In practice the panel redraws once a minute.
 
@@ -141,7 +143,8 @@ A zero is never displayed for a missing reading — `0°C` reads as real data.
 PCF85063 ──▶ time_manager ──▶ POSIX system clock ──▶ Calendar_LoopTask ─┐
 SNTP     ──▶                         ▲                                 ├──▶ calendar_ui_data_t ──▶ calendar_ui
                                      └── written back on sync          │
-SHTC3    ──▶ sensor_manager ──▶ Sensor_LoopTask ───────────────────────┘
+SHTC3    ──▶ sensor_manager ──▶ Sensor_LoopTask ───────────────────────┤
+ADC1     ──▶ Battery_LoopTask ─────────────────────────────────────────┘
 ```
 
 * `time_manager` (`components/app_bsp/time_manager.cpp`) sets `TZ` from `CONFIG_CALENDAR_TIMEZONE`,
@@ -155,6 +158,15 @@ SHTC3    ──▶ sensor_manager ──▶ Sensor_LoopTask ──────�
 * `calendar_calc` (`components/ui_bsp/custom/calendar_calc.c`) turns a `struct tm` into the
   `calendar_ui_data_t` the UI draws: weekday (Monday-first), ISO 8601 week number, day of year.
   The UI reads that struct and nothing else.
+* `Battery_LoopTask` samples the existing ADC1 channel 3 driver once a minute and writes its
+  percentage to the bottom-left status label. The driver maps 3.0 V or below to 0%, 4.12 V or above
+  to 100%, with a linear value between those limits.
+
+#### LVGL performance monitor
+
+`CONFIG_LV_USE_PERF_MONITOR=y` enables LVGL's built-in performance overlay. It is created by LVGL on
+the system layer at the bottom right and reports its FPS and CPU usage; the application does not
+collect or format separate render statistics.
 
 ### 3.2 Image view — `screen_cont_3`
 

@@ -1,6 +1,8 @@
 #ifndef CALENDAR_UI_H
 #define CALENDAR_UI_H
 
+#include <stdint.h>
+
 #include "lvgl.h"
 #include "calendar_calc.h"
 
@@ -28,6 +30,9 @@ void calendar_ui_update_time(int hour, int minute, bool valid);
 
 /* Sensor cadence: only the temperature/humidity row. */
 void calendar_ui_update_environment(float temperature_c, float humidity_percent, bool valid);
+
+/* Battery cadence: only the lower-left status label. */
+void calendar_ui_update_battery(uint8_t percent);
 
 #ifdef __cplusplus
 }
