@@ -11,7 +11,7 @@ The firmware never reads a data file at run time — the table is compiled in as
 |---|---|---|
 | `lunar_auspicious_days.h` | 黄道吉日 bit, 十二值神 nibble and 十二建除 nibble, one entry per day of 2026–2030 | `calendar_calc.c` via `lunar_is_auspicious_day()` / `lunar_day_deity_index()` / `lunar_day_officer_index()` |
 | `lunar_yiji_data.h` | every day's complete 宜 / 忌 list as one packed UTF-8 blob plus a `uint32` offset table | `calendar_calc.c` via `lunar_yi(index)` / `lunar_ji(index)` |
-| `fonts/lv_font_calendar_yiji_12.c` | 1 bpp CJK subset: every character those lists use, plus the fixed `宜忌：无十二建除值神` wording and the 12 + 12 names | `calendar_ui.c` |
+| `fonts/lv_font_calendar_yiji_12.c` | 1 bpp CJK subset: every character those lists use, plus the fixed `宜忌：无十二建除值神` wording, the space that separates `建除：X 值神：Y`, and the 12 + 12 names | `calendar_ui.c` |
 
 `calendar_calc_fill()` maps a date to one flat index — `day_of_year - 1`, plus the whole years since
 2026 — and both headers are indexed the same way. **The three assets must always be regenerated

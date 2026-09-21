@@ -18,8 +18,9 @@ from lunar_utils import CSV_PATH, DAY_DEITIES, HEAVENLY_OFFICERS, all_days, load
 
 OUT = Path(__file__).resolve().parents[1] / "components/ui_bsp/custom"
 
-# 建除：／值神： plus every name either line can print.
-ALMANAC_LABELS = "十二建除值神：" + "".join(HEAVENLY_OFFICERS) + "".join(DAY_DEITIES)
+# The 建除 / 值神 labels, the space that separates them on the dashboard's single
+# status line, and every name either of them can print.
+ALMANAC_LABELS = " 十二建除值神：" + "".join(HEAVENLY_OFFICERS) + "".join(DAY_DEITIES)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

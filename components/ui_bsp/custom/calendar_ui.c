@@ -59,8 +59,7 @@ static lv_obj_t *time_label;
 static lv_obj_t *temperature_label;
 static lv_obj_t *humidity_label;
 static lv_obj_t *week_info_label;
-static lv_obj_t *officer_label;
-static lv_obj_t *deity_label;
+static lv_obj_t *almanac_label;
 static lv_obj_t *month_label;
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
 static lv_obj_t *battery_label;
@@ -184,9 +183,8 @@ void calendar_ui_create(lv_obj_t *parent)
     humidity_label = make_label(environment_panel, 68, 2, 64, &lv_font_calendar_16, LV_TEXT_ALIGN_RIGHT, 0, "");
 
     week_info_label = make_label(left_panel, 2, 166, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
-    /* 十二建除 / 十二值神, in the two lines 宜/忌 used to occupy. */
-    officer_label = make_label(left_panel, 2, 194, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
-    deity_label   = make_label(left_panel, 2, 212, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+    /* 十二建除 and 十二值神 share one line: 建除：X 值神：Y is 120 px of the 132 px column. */
+    almanac_label = make_label(left_panel, 2, 194, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
 
     make_line(root, SEP_V_X, SEP_V_Y, vertical_separator_points, 0, SEP_V_H);
 
@@ -355,8 +353,7 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
         lv_label_set_text(date_label, "");
         lv_label_set_text(weekday_label, "WAITING FOR TIME");
         lv_label_set_text(week_info_label, "");
-        lv_label_set_text(officer_label, "");
-        lv_label_set_text(deity_label, "");
+        lv_label_set_text(almanac_label, "");
         lv_label_set_text(month_label, "");
         lv_label_set_text(yi_label, "");
         lv_label_set_text(ji_label, "");
@@ -387,18 +384,16 @@ void calendar_ui_refresh_all(const calendar_ui_data_t *data)
         };
         snprintf(buf, sizeof(buf), "%s%s年", gan[data->lunar_year_gan], zhi[data->lunar_year_zhi]);
         lv_label_set_text(ganzhi_label, buf);
-        snprintf(buf, sizeof(buf), "建除：%s", officer_names[data->lunar_officer_index]);
-        lv_label_set_text(officer_label, buf);
-        snprintf(buf, sizeof(buf), "值神：%s", deity_names[data->lunar_deity_index]);
-        lv_label_set_text(deity_label, buf);
+        snprintf(buf, sizeof(buf), "建除：%s 值神：%s",
+                 officer_names[data->lunar_officer_index], deity_names[data->lunar_deity_index]);
+        lv_label_set_text(almanac_label, buf);
         snprintf(buf, sizeof(buf), "宜：%s", data->day_yi);
         lv_label_set_text(yi_label, buf);
         snprintf(buf, sizeof(buf), "忌：%s", data->day_ji);
         lv_label_set_text(ji_label, buf);
     } else {
         lv_label_set_text(ganzhi_label, "");
-        lv_label_set_text(officer_label, "");
-        lv_label_set_text(deity_label, "");
+        lv_label_set_text(almanac_label, "");
         lv_label_set_text(yi_label, "");
         lv_label_set_text(ji_label, "");
     }
