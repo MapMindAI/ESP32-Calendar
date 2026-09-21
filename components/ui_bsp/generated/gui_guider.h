@@ -43,10 +43,10 @@ typedef struct
 	lv_obj_t *screen_cont_3;
 	lv_obj_t *screen_img_5;
 	lv_obj_t *screen_cont_4;
-	lv_obj_t *screen_img_6;
-	lv_obj_t *screen_label_17;
-	lv_obj_t *screen_label_16;
-	lv_obj_t *screen_label_15;
+	lv_obj_t *screen_label_cfg_title;
+	lv_obj_t *screen_label_cfg_state;
+	lv_obj_t *screen_label_cfg_ap;
+	lv_obj_t *screen_label_cfg_hint;
 }lv_ui;
 
 typedef void (*ui_setup_scr_t)(lv_ui * ui);

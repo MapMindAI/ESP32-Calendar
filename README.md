@@ -6,8 +6,10 @@ and humidity sensor, an audio codec pair and an 18650 battery holder.
 
 The tree currently starts from Waveshare's factory self-test demo (the CMake project is still named
 `03_Fac`): it boots, cycles a few LVGL screens, and exercises each attached peripheral in turn —
-clock, battery level, temperature/humidity, SD card read-back, Wi-Fi AP count, BLE device count, and
-record/playback through the codec. Calendar functionality is being built on top of that scaffolding.
+clock, battery level, temperature/humidity, SD card read-back and BLE device count. Wi-Fi is now a
+real feature rather than a demo: the device is configured over a captive portal and stores its
+credentials in NVS (see **Wi-Fi setup** below). Calendar functionality is being built on top of that
+scaffolding.
 
 * Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (UI generated with NXP GUI Guider)
 * Flash layout: single 8 MB factory app, no OTA (`partitions.csv`)
@@ -25,6 +27,22 @@ idf.py -p /dev/ttyACM0 flash monitor
 `sdkconfig.defaults`, and changes to it go through `idf.py save-defconfig`.
 
 To enter download mode: hold **BOOT**, tap **RESET**/power, release **BOOT**.
+
+## Wi-Fi setup
+
+The device ships with no credentials. Long-press **BOOT** to open the setup view, then:
+
+1. On the phone, join the hotspot `ESP32-Calendar`, passphrase `calendar` (the screen shows the
+   hotspot name, the passphrase and `192.168.4.1`).
+2. The captive portal page opens by itself; if it does not, browse to `http://192.168.4.1`.
+3. Pick your network from the scanned list, type the password, press **Connect**.
+4. The screen walks through `Connecting to <ssid>...` → `Connected! IP ...`, and the phone page shows
+   the same result. The credentials are saved to the NVS namespace `wificfg`.
+5. Long-press **BOOT** again to close the setup view. On every later boot the device connects with
+   the saved credentials; opening the setup view again overwrites them.
+
+To wipe the saved credentials, re-run the setup (a different network overwrites them) or erase NVS
+with `idf.py -p <port> erase-flash`.
 
 ## Hardware
 
@@ -55,6 +73,7 @@ To enter download mode: hold **BOOT**, tap **RESET**/power, release **BOOT**.
 | microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — mounted at `/sdcard` | `components/port_bsp/sdcard_bsp.cpp` |
 | BOOT / KEY buttons | GPIO, active-low | GPIO 0 / GPIO 18 — single, double and long press | `components/port_bsp/button_bsp.c` |
 | Battery sense | ADC1 | channel 3 — voltage and percentage | `components/port_bsp/adc_bsp.cpp` |
+| Wi-Fi (STA + config hotspot) | on-chip radio | WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
 
 The codec and I2S pin map also lives in the `S3_RLCD_4_2` entry of
 `components/ExternLib/codec_board/board_cfg.txt`, which is that component's own configuration format.
@@ -71,7 +90,7 @@ driver. `full_refresh` is enabled, so every flush repaints and re-transmits the 
 main/            app_main, boot order, LVGL→1-bit flush callback, pin defines
 components/
   port_bsp/      hardware ports: display, I2C, sensors/RTC, codec, SD, buttons, ADC
-  app_bsp/       LVGL port, Wi-Fi, BLE scan
+  app_bsp/       LVGL port, Wi-Fi STA + captive-portal config, BLE scan
   ui_bsp/        GUI Guider output (generated/) plus hand-editable hooks (custom/)
   user_app/      application entry points and FreeRTOS tasks
   ExternLib/     vendored third-party components (SensorLib, codec_board)
