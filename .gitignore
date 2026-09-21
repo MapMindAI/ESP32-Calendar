@@ -1,0 +1,17 @@
+# Build output
+build/
+
+# ESP-IDF sdkconfig (per-developer settings); keep sdkconfig.defaults
+sdkconfig
+sdkconfig.old
+
+# Managed ESP-IDF components (restored via `idf.py reconfigure` / idf_component.yml)
+managed_components/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
