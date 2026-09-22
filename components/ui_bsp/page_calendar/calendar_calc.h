@@ -36,6 +36,14 @@ typedef struct {
 
   bool time_valid;
 
+  /* Browsing state: when the KEY button walks the calendar off today, the
+     grid and the 宜忌 section follow year/month/day above while the top-left
+     date block keeps showing the real today carried here. */
+  bool browsing;
+  int today_year;
+  int today_month; /* 1..12 */
+  int today_day;   /* 1..31 */
+
   float temperature_c;
   float humidity_percent;
 

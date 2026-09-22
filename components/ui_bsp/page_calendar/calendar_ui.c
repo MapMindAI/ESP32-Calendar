@@ -401,12 +401,25 @@ void calendar_ui_refresh_all(const calendar_ui_data_t* data) {
     return;
   }
 
-  snprintf(buf, sizeof(buf), "%04d·%02d·%02d", data->year, data->month, data->day);
-  lv_label_set_text(date_label, buf);
-  lv_label_set_text(weekday_label, calendar_calc_weekday_name(data->weekday));
+  if (data->browsing) {
+    int today_weekday = calendar_calc_weekday(data->today_year, data->today_month, data->today_day);
 
-  snprintf(buf, sizeof(buf), "WEEK %d · DAY %d", data->week_number, data->day_of_year);
-  lv_label_set_text(week_info_label, buf);
+    snprintf(buf, sizeof(buf), "%04d·%02d·%02d", data->today_year, data->today_month,
+             data->today_day);
+    lv_label_set_text(date_label, buf);
+    lv_label_set_text(weekday_label, calendar_calc_weekday_name(today_weekday));
+    snprintf(buf, sizeof(buf), "WEEK %d · DAY %d",
+             calendar_calc_iso_week(data->today_year, data->today_month, data->today_day),
+             calendar_calc_day_of_year(data->today_year, data->today_month, data->today_day));
+    lv_label_set_text(week_info_label, buf);
+  } else {
+    snprintf(buf, sizeof(buf), "%04d·%02d·%02d", data->year, data->month, data->day);
+    lv_label_set_text(date_label, buf);
+    lv_label_set_text(weekday_label, calendar_calc_weekday_name(data->weekday));
+
+    snprintf(buf, sizeof(buf), "WEEK %d · DAY %d", data->week_number, data->day_of_year);
+    lv_label_set_text(week_info_label, buf);
+  }
 
   snprintf(buf, sizeof(buf), "%s %04d", calendar_calc_month_name(data->month), data->year);
   lv_label_set_text(month_label, buf);

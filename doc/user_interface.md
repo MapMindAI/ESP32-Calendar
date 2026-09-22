@@ -109,7 +109,12 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `uptime_label` | right-aligned to 384, 284 (48 wide) | elapsed boot duration `%02u:%02u`, 12 px | `Calendar_LoopTask` | once per minute, only with `LVGL_DEBUG_LOG` |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
-neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
+neighbouring months, and the selected day is the one inverted cell (black fill, white text, 3 px
+radius). Normally that is today; a KEY single click browses forward one day at a time and a double
+click one month at a time (§4.1), and
+while browsing, the grid, `month_label`, `ganzhi_label`, `almanac_label` and the 宜/忌 lines follow
+the selected day while `date_label`, `weekday_label`, `week_info_label` and the clock keep showing
+real today. A KEY long press returns the view to today.
 
 #### Refresh policy
 
@@ -311,15 +316,22 @@ one bit per wake, in the priority order below.
 |---|---|---|
 | BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal if it is running |
 | BOOT | single / double click | unused |
-| KEY | long press | On the Wi-Fi setup view, start the configuration hotspot and captive portal; otherwise no action yet |
-| KEY | single / double click | Dispatch to the current page's placeholder handler; no action yet |
+| KEY | single click | On the dashboard, move the calendar view one day forward and re-render the grid and the 宜忌 section; the top-left date/time block keeps showing today |
+| KEY | double click | On the dashboard, move the calendar view one month forward (same day of month, clamped), clearing any single-day offset |
+| KEY | long press | On the dashboard, jump the calendar view back to today; on the Wi-Fi setup view, start the configuration hotspot and captive portal |
 
 Notes on the semantics as implemented:
 
 * Long press fires on **press start**, not release — the view flips while the button is still down.
 * KEY dispatches to `calendar_key_<gesture>()` on the dashboard and
-  `wifi_setup_key_<gesture>()` on the setup page. The setup page's long press requests the hotspot;
-  the other five handlers are intentionally empty until page-specific interactions are defined.
+  `wifi_setup_key_<gesture>()` on the setup page. The dashboard's single click steps a day
+  offset (`CalendarView_AdvanceDay`), its double click steps a month offset and clears the day
+  offset (`CalendarView_AdvanceMonth`), and its long press clears both (`CalendarView_ResetDay`);
+  all three re-render through `CalendarView_Render()` in `driver_update.cpp`, which logs the
+  resulting view date (`cal_view` tag). While an offset is
+  nonzero the month grid, the highlighted cell, 干支 and the 宜忌 lines follow the selected day,
+  and the top-left date, weekday, week counter and clock stay on real today (the `browsing` /
+  `today_*` fields of `calendar_ui_data_t`). The setup page's long press requests the hotspot.
 * The setup view owns the radio only after its KEY long press: that request takes `WifiMutex` and
   starts the hotspot and captive portal. Closing the view stops them if running, tears Wi-Fi down
   and releases the mutex. If a sync window (§3.4) is in progress, the page sits on `Starting

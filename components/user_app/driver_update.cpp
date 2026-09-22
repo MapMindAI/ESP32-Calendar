@@ -1,5 +1,6 @@
 #include "user_app_internal.h"
 
+#include <esp_log.h>
 #include <esp_timer.h>
 #include <math.h>
 #include "adc_bsp.h"
@@ -21,8 +22,96 @@
 #define HUMIDITY_REFRESH_THRESHOLD 1.0f
 #define BATTERY_READ_INTERVAL_MS 60000
 
-void Calendar_LoopTask(void* arg) {
+/* Browsing offsets the KEY button has walked the calendar view away from
+   today: whole months first, then single days on top. Only ever incremented
+   and reset, so the month math never goes below today's month. Written from
+   KEY_LoopTask, read from Calendar_LoopTask; plain volatile ints are atomic
+   enough for counters. */
+static volatile int calendar_view_offset_months = 0;
+static volatile int calendar_view_offset_days = 0;
+
+static void calendar_view_render(void);
+
+/* Today + the browsing offsets, with the day clamped into the target month
+   (today is the 31st and the target month has 30 days -> the 30th). */
+static bool calendar_view_date(struct tm* view) {
+  struct tm local;
+  int month_index;
+  int year;
+  int month;
+  int days_in_month;
+
+  if (!time_manager_get_local(&local)) {
+    return false;
+  }
+  month_index = local.tm_mon + calendar_view_offset_months;
+  year = local.tm_year + 1900 + month_index / 12;
+  month = month_index % 12 + 1;
+  days_in_month = calendar_calc_days_in_month(year, month);
+
+  *view = local;
+  view->tm_year = year - 1900;
+  view->tm_mon = month - 1;
+  if (view->tm_mday > days_in_month) {
+    view->tm_mday = days_in_month;
+  }
+  view->tm_mday += calendar_view_offset_days;
+  mktime(view);
+  return true;
+}
+
+void CalendarView_AdvanceDay(void) { calendar_view_offset_days = calendar_view_offset_days + 1; }
+
+void CalendarView_AdvanceMonth(void) {
+  calendar_view_offset_months = calendar_view_offset_months + 1;
+  calendar_view_offset_days = 0;
+}
+
+void CalendarView_ResetDay(void) {
+  calendar_view_offset_months = 0;
+  calendar_view_offset_days = 0;
+}
+
+/* Button-triggered re-render: log the resulting view date, then repaint. */
+void CalendarView_Render(void) {
+  calendar_view_render();
+}
+
+/* Rebuild the dashboard for today + the browsing offset and push it to the
+   panel. Shared by Calendar_LoopTask's day-change refresh and the KEY button
+   handlers. */
+static void calendar_view_render(void) {
   environment_data_t environment;
+  struct tm local;
+  struct tm view;
+  calendar_ui_data_t data = {};
+
+  if (!calendar_view_date(&view)) {
+    return;
+  }
+  ESP_LOGI("cal_view", "offset %+dm %+dd -> %04d-%02d-%02d", calendar_view_offset_months,
+           calendar_view_offset_days, view.tm_year + 1900, view.tm_mon + 1, view.tm_mday);
+  time_manager_get_local(&local);
+
+  calendar_calc_fill(&data, &view);
+  data.browsing = calendar_view_offset_months != 0 || calendar_view_offset_days != 0;
+  data.today_year = local.tm_year + 1900;
+  data.today_month = local.tm_mon + 1;
+  data.today_day = local.tm_mday;
+
+  sensor_manager_last(&environment);
+  data.temperature_c = environment.temperature_c;
+  data.humidity_percent = environment.humidity_percent;
+  data.environment_valid = environment.valid;
+
+  if (Lvgl_lock(-1)) {
+    calendar_ui_refresh_all(&data);
+    Lvgl_unlock();
+    Lvgl_RequestRender(1);
+  }
+}
+
+void Calendar_LoopTask(void* arg) {
   struct tm local;
   int last_year = -1;
   int last_month = -1;
@@ -55,18 +144,7 @@ void Calendar_LoopTask(void* arg) {
     }
     if (!last_valid || local.tm_year != last_year || local.tm_mon != last_month ||
         local.tm_mday != last_day) {
-      calendar_ui_data_t data = {};
-
-      calendar_calc_fill(&data, &local);
-      sensor_manager_last(&environment);
-      data.temperature_c = environment.temperature_c;
-      data.humidity_percent = environment.humidity_percent;
-      data.environment_valid = environment.valid;
-      if (Lvgl_lock(-1)) {
-        calendar_ui_refresh_all(&data);
-        Lvgl_unlock();
-        Lvgl_RequestRender(1);
-      }
+      calendar_view_render();
       last_valid = true;
       last_year = local.tm_year;
       last_month = local.tm_mon;

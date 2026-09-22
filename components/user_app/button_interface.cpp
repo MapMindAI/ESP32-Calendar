@@ -41,9 +41,18 @@ void BOOT_LoopTask(void* arg) {
   }
 }
 
-static void calendar_key_single_click(void) {}
-static void calendar_key_double_click(void) {}
-static void calendar_key_long_press(void) {}
+static void calendar_key_single_click(void) {
+  CalendarView_AdvanceDay();
+  CalendarView_Render();
+}
+static void calendar_key_double_click(void) {
+  CalendarView_AdvanceMonth();
+  CalendarView_Render();
+}
+static void calendar_key_long_press(void) {
+  CalendarView_ResetDay();
+  CalendarView_Render();
+}
 static void wifi_setup_key_single_click(void) {}
 static void wifi_setup_key_double_click(void) {}
 
