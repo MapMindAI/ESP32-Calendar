@@ -4,10 +4,19 @@
 #include "lvgl.h"
 
 #define LVGL_TICK_PERIOD_MS    5
-#define LVGL_TASK_MAX_DELAY_MS 500
+
+/* Set to 1 while diagnosing display updates to log each completed render. */
+#ifndef LVGL_DEBUG_LOG
+#define LVGL_DEBUG_LOG 1
+#endif
 
 typedef void (*DispFlushCb)(struct _lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
 
-void Lvgl_PortInit(int width, int height, uint32_t render_fps, DispFlushCb flush_cb);
+void Lvgl_PortInit(int width, int height, DispFlushCb flush_cb);
 bool Lvgl_lock(int timeout_ms);
 void Lvgl_unlock(void);
+
+/* Wake the LVGL task after an application change has invalidated the screen.
+ * With this board's full-screen flush, rendering is intentionally event driven
+ * instead of running on an idle cadence. */
+void Lvgl_RequestRender(int id);
