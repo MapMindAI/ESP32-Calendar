@@ -7,9 +7,12 @@ and humidity sensor, an audio codec pair and an 18650 battery holder.
 The home screen is a calendar dashboard: the current month fills the right ~60 % as a Monday-first
 grid with today inverted, and a left column carries the `HH:MM` clock, the date and weekday, the
 temperature and humidity from the on-board SHTC3, and an ISO week / day-of-year summary. The clock runs from POSIX system time, seeded from the
-PCF85063 RTC at boot and corrected by SNTP whenever the network is up, so the display never depends
-on Wi-Fi. Wi-Fi itself is configured over a captive portal and the credentials are stored in NVS (see
-**Wi-Fi setup** below).
+PCF85063 RTC at boot and corrected by SNTP in a short daily sync window, so the display never depends
+on Wi-Fi. The radio is **off the rest of the day** to save battery: it comes up at boot, once a day
+at 03:30 local time and after the setup view closes, takes the time and shuts down again — a Wi-Fi
+icon under the battery percentage reports how the last window went (`✓` synced and radio off,
+`...` window open, `!` no answer, `?` not configured). Wi-Fi itself is configured over a
+captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below).
 
 The tree still starts from Waveshare's factory self-test demo (the CMake project is named `03_Fac`)
 and two of its screens survive behind long-presses; see **[AGENTS.md](AGENTS.md)** §10 for what is
@@ -18,6 +21,7 @@ still residue.
 * Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (dashboard hand-written; the remaining screens generated with NXP GUI Guider)
 * Flash layout: single 8 MB factory app, no OTA (`partitions.csv`)
 * Timezone and NTP server: `idf.py menuconfig` → **ESP32 Calendar** (`CONFIG_CALENDAR_TIMEZONE`, default `CST-8`)
+* Time of the daily sync window: `TIME_SYNC_HOUR` / `TIME_SYNC_MINUTE` in `components/user_app/user_app.cpp`
 * Contributor rules, architecture notes and known rough edges: **[AGENTS.md](AGENTS.md)**
 
 ## Quick start
@@ -43,8 +47,10 @@ The device ships with no credentials. Long-press **BOOT** to open the setup view
 3. Pick your network from the scanned list, type the password, press **Connect**.
 4. The screen walks through `Connecting to <ssid>...` → `Connected! IP ...`, and the phone page shows
    the same result. The credentials are saved to the NVS namespace `wificfg`.
-5. Long-press **BOOT** again to close the setup view. On every later boot the device connects with
-   the saved credentials; opening the setup view again overwrites them.
+5. Long-press **BOOT** again to close the setup view. That drops the radio and immediately opens a
+   sync window with the new credentials, so the clock is corrected right away. From then on the
+   device only connects at boot and once a day; opening the setup view again overwrites the
+   credentials.
 
 To wipe the saved credentials, re-run the setup (a different network overwrites them) or erase NVS
 with `idf.py -p <port> erase-flash`.
@@ -78,7 +84,7 @@ with `idf.py -p <port> erase-flash`.
 | microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — driver present, not mounted by the firmware | `components/port_bsp/sdcard_bsp.cpp` |
 | BOOT / KEY buttons | GPIO, active-low | GPIO 0 / GPIO 18 — single, double and long press | `components/port_bsp/button_bsp.c` |
 | Battery sense | ADC1 | channel 3 — percentage shown in the dashboard | `components/port_bsp/adc_bsp.cpp` |
-| Wi-Fi (STA + config hotspot) | on-chip radio | WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
+| Wi-Fi (STA + config hotspot) | on-chip radio | off except during the daily sync window; WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
 
 The codec and I2S pin map also lives in the `S3_RLCD_4_2` entry of
 `components/ExternLib/codec_board/board_cfg.txt`, which is that component's own configuration format.

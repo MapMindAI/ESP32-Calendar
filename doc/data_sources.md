@@ -9,9 +9,11 @@ and when a changed value reaches the display.
 ```
 PCF85063 RTC ─┐
               ├─ time_manager ── POSIX local time ── Calendar_LoopTask ─┐
-SNTP server ──┘                                                        │
-                                                                         ├─ calendar_ui
-SHTC3 sensor ── sensor_manager ── Sensor_LoopTask ─────────────────────┘
+SNTP server ──┘         ▲                                              │
+                        └── Time_SyncTask (daily window) ── wifi icon ──┤
+                                                                        ├─ calendar_ui
+SHTC3 sensor ── sensor_manager ── Sensor_LoopTask ──────────────────────┤
+ADC1 ────────── Battery_LoopTask ───────────────────────────────────────┘
 ```
 
 The dashboard does not read I2C devices or network services directly. The
@@ -37,19 +39,58 @@ The RTC therefore provides the normal offline clock. If its year is outside
 the accepted range, the system clock remains invalid and the dashboard shows
 `--:--` and `WAITING FOR TIME` until a valid source becomes available.
 
-### Network correction: SNTP
+### Network correction: the daily sync window
 
-`Time_SyncTask` waits for the station interface to receive an IP address. The
-address can come from saved Wi-Fi credentials at boot or from the captive
-portal after setup. Only then does it start SNTP against
-`CONFIG_CALENDAR_NTP_SERVER` (default: `pool.ntp.org`).
+Wi-Fi is the largest current draw on the board and the PCF85063 holds the clock
+to a few seconds a day, so the radio is **down except inside a sync window**.
+`Time_SyncTask` owns those windows; nothing else brings the station up.
 
-When SNTP completes a synchronization, its callback reads the corrected local
-POSIX time and writes it back to the PCF85063. Subsequent boots can therefore
-use the corrected RTC without requiring Wi-Fi.
+One window is:
 
-Wi-Fi is optional for ordinary operation: no connection means no SNTP
-correction, but a valid RTC continues to provide date and time.
+1. Take `WifiMutex` — the setup view is the only other user of the radio.
+2. `espwifi_connect_stored()`. With no credentials in the NVS namespace
+   `wificfg` the window ends here and the Wi-Fi icon shows the *unset* state.
+3. `espwifi_wait_for_ip()`, up to `TIME_SYNC_IP_TIMEOUT_MS` (20 s). A
+   disconnect inside the window is retried automatically until that expires.
+4. `time_manager_sync_now()` starts SNTP against `CONFIG_CALENDAR_NTP_SERVER`
+   (default: `pool.ntp.org`) and **blocks** on `esp_netif_sntp_sync_wait()` for
+   up to `TIME_SYNC_SNTP_TIMEOUT_MS` (15 s). On success it writes the corrected
+   local time back to the PCF85063. SNTP is deinitialized before it returns.
+5. `espwifi_deinit()` — driver, netifs and the default event loop all go away,
+   and `user_esp_bsp._ip` is cleared so the next window starts from nothing.
+6. Publish the outcome to the Wi-Fi icon and release the mutex.
+
+Windows open:
+
+| Trigger | When |
+|---|---|
+| boot | as soon as `Time_SyncTask` starts |
+| daily | at `TIME_SYNC_HOUR`:`TIME_SYNC_MINUTE` local time (03:30 by default) |
+| after setup | `Config_LoopTask` sets `CFG_SYNC_NOW` when the setup view closes |
+| retry | `TIME_SYNC_RETRY_MINUTES` (30) after a window that got no answer, or one that ran while the clock was still invalid |
+
+All four constants live at the top of `components/user_app/user_app.cpp`.
+
+The retry cadence is what covers a board with a flat RTC: it has no time to
+display until a window lands, so waiting out a whole day is not an option.
+
+Wi-Fi is optional for ordinary operation: no credentials or no answer means no
+SNTP correction, but a valid RTC continues to provide date and time.
+
+### Wi-Fi status icon
+
+Because the radio is down almost all the time, the icon under the battery
+percentage reports the **last window's outcome**, not a live link state:
+
+| State | Icon | Meaning |
+|---|---|---|
+| `CALENDAR_WIFI_UNSET` | wifi + `?` | no credentials stored — run the setup view |
+| `CALENDAR_WIFI_ACTIVE` | wifi + `...` | a window is open right now, the radio is up |
+| `CALENDAR_WIFI_SYNCED` | wifi + `✓` | the last window got the time and the radio is back down |
+| `CALENDAR_WIFI_FAILED` | wifi + `!` | credentials exist, but the last window got no answer |
+
+Every state carries a marker on purpose: a bare wifi glyph reads as a live link,
+and the radio is down in three of the four. Only `...` means it is up.
 
 ### Calendar values and display cadence
 
@@ -119,6 +160,7 @@ FPS and CPU usage. No application-side performance counters are used.
 | Responsibility | File |
 |---|---|
 | RTC seed, timezone, SNTP and RTC write-back | `components/app_bsp/time_manager.cpp` |
+| Station bring-up, teardown and the captive portal | `components/app_bsp/esp_wifi_bsp.c` |
 | SHTC3 reads, validation and smoothing | `components/app_bsp/sensor_manager.cpp` |
 | Battery voltage and percentage conversion | `components/port_bsp/adc_bsp.cpp` |
 | Polling tasks and UI update thresholds | `components/user_app/user_app.cpp` |

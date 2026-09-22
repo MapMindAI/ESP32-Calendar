@@ -14,6 +14,7 @@ Code map:
 | Widget handles (`lv_ui` struct) | `components/ui_bsp/generated/gui_guider.h` |
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
 | System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
+| Station bring-up/teardown, captive portal | `components/app_bsp/esp_wifi_bsp.c`, `wifi_portal.c` |
 | Temperature/humidity source | `components/app_bsp/sensor_manager.cpp` |
 | Battery source | `components/port_bsp/adc_bsp.cpp` |
 | Button decoding | `components/port_bsp/button_bsp.c` |
@@ -79,7 +80,7 @@ The home view: the clock and the date in a narrow left column, the current month
  │                    │                                                 │
  ├────────────────────┴─────────────────────────────────────────────────┤
  │ 宜：嫁娶、纳采、祭祀、解除、出行、修造…                           87%│
- │ 忌：造庙、行丧、安葬、伐木…                                           │
+ │ 忌：造庙、行丧、安葬、伐木…                                        ((•✓│
  └──────────────────────────────────────────────────────────────────────┘
  (0,300)                                                              (400,300)
 ```
@@ -107,7 +108,8 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
 | `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
 | `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
-| `battery_label` | right-aligned to 384, 261 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
+| `battery_label` | right-aligned to 384, 254 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
+| `wifi_label` | right-aligned to 384, 268 (48 wide) | `LV_SYMBOL_WIFI` plus a state marker (`✓`, `...`, `!`, `?`), 14 px Montserrat | `Time_SyncTask` | at the start and end of every sync window |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
 neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
@@ -124,6 +126,7 @@ behind it actually moved:
 | Date, weekday, week, month grid, bottom bar | system clock, 1 s | when the day changes (`calendar_ui_refresh_all`) |
 | Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 %, or after 10 minutes without a repaint |
 | Battery | ADC1 channel 3, 60 s | when the percentage changes |
+| Wi-Fi icon | the sync window itself | twice per window: opened, and closed with its outcome |
 | Almanac result | generated 2026--2030 day table, 1 s | when the day changes |
 
 In practice the panel redraws once a minute.
@@ -139,6 +142,26 @@ Neither the clock nor the sensor is trusted before it has answered:
 
 A zero is never displayed for a missing reading — `0°C` reads as real data.
 
+#### Wi-Fi icon
+
+The radio is down except inside a sync window (§3.5), so the icon reports the
+**last window's outcome** rather than a live link state. It is one glyph plus one
+ASCII marker, because there is no colour on this panel and no room beside the
+battery for a second icon:
+
+| `calendar_wifi_state_t` | Shown | Meaning |
+|---|---|---|
+| `CALENDAR_WIFI_UNSET` | wifi `?` | no credentials stored — long-press BOOT and run setup |
+| `CALENDAR_WIFI_ACTIVE` | wifi `...` | a window is open right now, the radio is up |
+| `CALENDAR_WIFI_SYNCED` | wifi `✓` | the last window got the time and the radio is back down |
+| `CALENDAR_WIFI_FAILED` | wifi `!` | credentials exist, but the last window got no answer |
+
+Every state carries a marker on purpose: a bare wifi glyph reads as a live link,
+and the radio is down in three of the four — only `...` means it is up.
+
+The glyphs come from `lv_font_montserrat_14` — LVGL's default font, linked either
+way, and the only face here that carries `LV_SYMBOL_WIFI` and `LV_SYMBOL_OK` (§5).
+
 #### Where the values come from
 
 ```
@@ -147,13 +170,15 @@ SNTP     ──▶                         ▲                                 �
                                      └── written back on sync          │
 SHTC3    ──▶ sensor_manager ──▶ Sensor_LoopTask ───────────────────────┤
 ADC1     ──▶ Battery_LoopTask ─────────────────────────────────────────┘
+
+Time_SyncTask ──▶ Wi-Fi up ──▶ SNTP ──▶ Wi-Fi down ──▶ wifi icon
 ```
 
 * `time_manager` (`components/app_bsp/time_manager.cpp`) sets `TZ` from `CONFIG_CALENDAR_TIMEZONE`,
-  seeds the system clock from the PCF85063 at boot, and writes the RTC back whenever SNTP syncs
-  against `CONFIG_CALENDAR_NTP_SERVER`. `Time_SyncTask` starts SNTP once the station has an IP —
-  from stored credentials at boot, or from the setup view later. With no network the clock still
-  runs from the RTC, and the display never depends on Wi-Fi being up.
+  seeds the system clock from the PCF85063 at boot, and writes the RTC back whenever
+  `time_manager_sync_now()` lands an answer from `CONFIG_CALENDAR_NTP_SERVER`. `Time_SyncTask` is
+  what calls it, inside a sync window (§3.5). With no network the clock still runs from the RTC, and
+  the display never depends on Wi-Fi being up.
 * `sensor_manager` (`components/app_bsp/sensor_manager.cpp`) is the only thing that knows the part is
   an SHTC3. It range-checks every reading (−40…85 °C, 0…100 %RH) and smooths it (α = 0.2) so a
   sensor dithering between 24.7 and 24.8 does not walk over the refresh threshold each minute.
@@ -235,11 +260,34 @@ Nothing runs until the user opens the view. `Config_LoopTask` then:
    for `IP_EVENT_STA_GOT_IP`. On success the credentials are written to the NVS namespace
    `wificfg` (keys `ssid`, `pass`) and `/status` shows the IP; on failure the page returns to the
    scan list after 3 s and the AP stays up for a retry.
-6. On the next boot `espwifi_connect_stored()` reads that namespace and connects as a plain STA. With
-   nothing stored, Wi-Fi is not started at all and the dashboard shows `SETUP`.
+6. Long-pressing BOOT again closes the view. `espwifi_config_stop()` stops the DNS/HTTP servers and
+   tears Wi-Fi **all the way down** — the radio is not kept up after setup — then `Config_LoopTask`
+   sets `CFG_SYNC_NOW`, which makes `Time_SyncTask` open a sync window straight away with the new
+   credentials. From then on the credentials are only used inside those windows (§3.5).
 
-Long-pressing BOOT again closes the view: `espwifi_config_stop()` stops the DNS/HTTP servers and the
-hotspot, keeps the STA connection if one is working, and otherwise tears Wi-Fi down.
+### 3.5 Daily Wi-Fi sync window
+
+Wi-Fi is the largest current draw on the board, so the radio is **down except inside a sync window**.
+`Time_SyncTask` owns the windows and is the only thing that brings the station up; `Config_LoopTask`
+is the only other user of the radio, and the two are serialised by `WifiMutex`.
+
+A window connects with the stored credentials, blocks on SNTP, writes the corrected time back to the
+PCF85063 and calls `espwifi_deinit()`. The Wi-Fi icon in the bottom bar (§3.1) is written at both
+ends of it, which is the only feedback the dashboard gives about the radio.
+
+| Trigger | When |
+|---|---|
+| boot | as soon as `Time_SyncTask` starts |
+| daily | `TIME_SYNC_HOUR`:`TIME_SYNC_MINUTE` local time — 03:30 by default |
+| after setup | the setup view closing sets `CFG_SYNC_NOW` |
+| retry | `TIME_SYNC_RETRY_MINUTES` (30) after a window that got no answer, or one that ran while the clock was still invalid |
+
+All four constants sit at the top of `user_app.cpp`. Moving the daily window means editing
+`TIME_SYNC_HOUR`/`TIME_SYNC_MINUTE`, not a Kconfig option.
+
+With nothing stored in the NVS namespace `wificfg`, a window ends immediately and the icon shows the
+*unset* state; the clock then runs from the RTC alone. See
+[`data_sources.md`](data_sources.md) for the step-by-step window and its timeouts.
 
 ## 4. Button interface
 
@@ -272,9 +320,11 @@ Notes on the semantics as implemented:
 * The two view toggles are independent booleans (`is_CfgViewOn`, `is_cont3en`). Turning one off always
   returns to the dashboard, so entering the image view from the setup view and then leaving lands on
   the dashboard rather than back where you came from.
-* The setup view owns the radio while it is open: opening it starts the hotspot and captive portal,
-  closing it stops them and tears Wi-Fi down if the STA never associated. The button tasks do the
-  visibility flip and signal `ConfigGroups`; `Config_LoopTask` does the Wi-Fi work.
+* The setup view owns the radio while it is open: opening it takes `WifiMutex` and starts the hotspot
+  and captive portal, closing it stops them, tears Wi-Fi down and releases the mutex. If a sync
+  window (§3.5) is in progress the view sits on `Starting hotspot...` until it finishes — at most
+  about 35 s. The button tasks do the visibility flip and signal `ConfigGroups`; `Config_LoopTask`
+  does the Wi-Fi work.
 * The audio recorder/player demo (BOOT single = play recording, BOOT double = record, KEY single/
   double = `canon.pcm`) was removed together with the audio view and `Codec_LoopTask`.
 
@@ -312,6 +362,7 @@ different places.
 | `lv_font_calendar_chinese_12` | 12 px | 1 | — (no caller; the 黄道吉日 state is not drawn) |
 | `lv_font_calendar_ganzhi_12` | 12 px | 1 | year 干支 beside the month heading (2026--2030 stems and branches) |
 | `lv_font_calendar_yiji_12` | 12 px | 1 | the `宜：` / `忌：` lines in the bottom bar (one clipped line each) and the single `建除：… 值神：…` line in the left column |
+| `lv_font_montserrat_14` | 14 px | 4 | the bottom-bar Wi-Fi icon and its `✓` marker — LVGL's built-in default face, the only one here carrying `LV_SYMBOL_WIFI` / `LV_SYMBOL_OK` |
 | `lv_font_MISANSMEDIUM_25` | 25 px | 4 | Wi-Fi setup title and state line |
 | `lv_font_MISANSMEDIUM_20` | 20 px | 4 | — (unused since the dashboard was replaced) |
 | `lv_font_MISANSMEDIUM_18` | 18 px | 4 | Wi-Fi setup portal/hint lines |
@@ -350,8 +401,8 @@ Guider project.
 
 Images are LVGL C arrays under `components/ui_bsp/generated/images/`. Only `_ein_alpha_400x300` (the
 image view) is still referenced; the two 30 × 30 sensor icons, the battery icon and `_3_alpha_200x200`
-went with the old dashboard. The new dashboard is text and 1 px rules only — no icons, no gauges, no
-weather art.
+went with the old dashboard. The new dashboard is text, 1 px rules and the single `LV_SYMBOL_WIFI`
+glyph in the bottom bar — no bitmap icons, no gauges, no weather art.
 
 ## 6. Adding to the UI
 

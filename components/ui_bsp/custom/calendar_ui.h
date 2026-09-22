@@ -31,8 +31,21 @@ void calendar_ui_update_time(int hour, int minute, bool valid);
 /* Sensor cadence: only the temperature/humidity row. */
 void calendar_ui_update_environment(float temperature_c, float humidity_percent, bool valid);
 
-/* Battery cadence: only the lower-left status label. */
+/* Battery cadence: only the lower-right percentage label. */
 void calendar_ui_update_battery(uint8_t percent);
+
+/* What the Wi-Fi icon under the battery says. The radio is down between the
+   daily sync windows, so the icon reports how the last one went rather than a
+   live link state. */
+typedef enum {
+    CALENDAR_WIFI_UNSET,   /* no credentials stored — the setup view is the fix */
+    CALENDAR_WIFI_ACTIVE,  /* radio up right now: a sync window or the portal */
+    CALENDAR_WIFI_SYNCED,  /* radio down again, the last window got the time */
+    CALENDAR_WIFI_FAILED,  /* radio down, the last window did not */
+} calendar_wifi_state_t;
+
+/* Sync cadence: only the lower-right Wi-Fi icon. */
+void calendar_ui_update_wifi(calendar_wifi_state_t state);
 
 #ifdef __cplusplus
 }

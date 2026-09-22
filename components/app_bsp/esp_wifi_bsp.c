@@ -24,6 +24,7 @@ static esp_netif_t *s_netif_sta = NULL;
 static esp_netif_t *s_netif_ap = NULL;
 static bool s_netif_ready = false;
 static bool s_event_loop = false;
+static bool s_handlers_ready = false;
 static bool s_wifi_ready = false;   /* driver initialised */
 static bool s_wifi_started = false; /* esp_wifi_start() done */
 static bool s_config_mode = false;
@@ -50,6 +51,17 @@ static void base_init(void)
         esp_event_loop_create_default();
         s_event_loop = true;
     }
+    /* The loop and these handlers outlive every Wi-Fi cycle. A sync window runs
+       once a day, so re-registering per cycle would pile up duplicate handlers
+       — and tearing the default loop down under lwIP is not worth the risk for
+       the few hundred bytes it holds. */
+    if (!s_handlers_ready) {
+        esp_event_handler_instance_t inst_wifi;
+        esp_event_handler_instance_t inst_ip;
+        esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &inst_wifi);
+        esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &inst_ip);
+        s_handlers_ready = true;
+    }
 }
 
 static void wifi_driver_init(void)
@@ -62,10 +74,6 @@ static void wifi_driver_init(void)
     s_netif_ap = esp_netif_create_default_wifi_ap();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
-    esp_event_handler_instance_t inst_wifi;
-    esp_event_handler_instance_t inst_ip;
-    esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &inst_wifi);
-    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &inst_ip);
     s_wifi_ready = true;
 }
 
@@ -111,12 +119,22 @@ bool espwifi_connect_stored(void)
     wifi_config_t wifi_config = {0};
     memcpy(wifi_config.sta.ssid, ssid, strnlen(ssid, sizeof(wifi_config.sta.ssid)));
     memcpy(wifi_config.sta.password, pass, strnlen(pass, sizeof(wifi_config.sta.password)));
+    xEventGroupClearBits(wifi_even_, WIFI_EV_STA_CONNECTED | WIFI_EV_STA_FAILED);
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
     s_connect_on_start = true;
     esp_wifi_start();
     s_wifi_started = true;
     return true;
+}
+
+bool espwifi_wait_for_ip(uint32_t timeout_ms)
+{
+    if (wifi_even_ == NULL) {
+        return false;
+    }
+    return (xEventGroupWaitBits(wifi_even_, WIFI_EV_STA_CONNECTED, pdFALSE, pdTRUE,
+                                pdMS_TO_TICKS(timeout_ms)) & WIFI_EV_STA_CONNECTED) != 0;
 }
 
 void espwifi_config_start(void)
@@ -177,15 +195,11 @@ bool espwifi_config_connect(const char *ssid, const char *pass)
 
 void espwifi_config_stop(void)
 {
-    wifi_portal_stop();
+    /* The radio is the biggest draw on the board, so setup does not leave it on:
+       the daily sync window in user_app is what brings Wi-Fi back up. */
     s_config_mode = false;
-    if (xEventGroupGetBits(wifi_even_) & WIFI_EV_STA_CONNECTED) {
-        /* Keep the working STA connection, drop the hotspot. */
-        esp_wifi_set_mode(WIFI_MODE_STA);
-        ESP_LOGI(TAG, "config done, STA kept up");
-    } else {
-        espwifi_deinit();
-    }
+    espwifi_deinit();
+    ESP_LOGI(TAG, "config done, Wi-Fi down");
 }
 
 const wifi_ap_record_t *espwifi_get_scan_results(uint16_t *count)
@@ -198,6 +212,9 @@ void espwifi_deinit(void)
 {
     wifi_portal_stop();
     if (s_wifi_ready) {
+        /* Cleared first: esp_wifi_stop() raises a disconnect event, and the
+           handler must not answer it with another connect attempt. */
+        s_connect_on_start = false;
         esp_wifi_stop();
         esp_wifi_deinit();
         esp_netif_destroy_default_wifi(s_netif_sta);
@@ -206,11 +223,13 @@ void espwifi_deinit(void)
         s_netif_ap = NULL;
         s_wifi_ready = false;
         s_wifi_started = false;
-        s_connect_on_start = false;
     }
-    if (s_event_loop) {
-        esp_event_loop_delete_default();
-        s_event_loop = false;
+    /* The address is gone with the interface; leaving the old one behind would
+       make the next sync window think it was already online. */
+    user_esp_bsp._ip[0] = 0;
+    if (wifi_even_ != NULL) {
+        xEventGroupClearBits(wifi_even_, WIFI_EV_STA_CONNECTED | WIFI_EV_STA_FAILED |
+                             WIFI_EV_STA_START | WIFI_EV_AP_CLIENT);
     }
 }
 
@@ -225,12 +244,17 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
             }
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
+            xEventGroupClearBits(wifi_even_, WIFI_EV_STA_CONNECTED);
             if (s_config_mode) {
                 wifi_event_sta_disconnected_t *ev = event_data;
                 if (ev->reason != WIFI_REASON_ASSOC_LEAVE) {
                     xEventGroupSetBits(wifi_even_, WIFI_EV_STA_FAILED);
                     xSemaphoreGive(s_connect_sem);
                 }
+            } else if (s_connect_on_start) {
+                /* A sync window is open and short; keep retrying until its caller
+                   gives up and tears the radio down. */
+                esp_wifi_connect();
             }
             break;
         case WIFI_EVENT_AP_STACONNECTED:
@@ -246,9 +270,9 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
                  "%d.%d.%d.%d", (uint8_t)(pxip), (uint8_t)(pxip >> 8),
                  (uint8_t)(pxip >> 16), (uint8_t)(pxip >> 24));
         ESP_LOGI(TAG, "got IP %s", user_esp_bsp._ip);
+        xEventGroupSetBits(wifi_even_, WIFI_EV_STA_CONNECTED);
+        xEventGroupClearBits(wifi_even_, WIFI_EV_STA_FAILED);
         if (s_config_mode) {
-            xEventGroupSetBits(wifi_even_, WIFI_EV_STA_CONNECTED);
-            xEventGroupClearBits(wifi_even_, WIFI_EV_STA_FAILED);
             xSemaphoreGive(s_connect_sem);
         }
     }

@@ -39,10 +39,11 @@
 #define BAR_W 368
 #define BAR_H 32
 
-/* The battery reads "<n>%" now — 39 px at its widest in the 12 px face — so it
-   claims little of the bar and the 宜/忌 lines get the rest. */
-#define BAR_BATTERY_W 48
-#define BAR_YIJI_W (BAR_W - BAR_BATTERY_W - 8)
+/* The battery reads "<n>%" — 39 px at its widest in the 12 px face — and the
+   Wi-Fi icon sits under it, so the right-hand column stays narrow and the 宜/忌
+   lines get the rest of the bar. */
+#define BAR_STATUS_W 48
+#define BAR_YIJI_W   (BAR_W - BAR_STATUS_W - 8)
 
 #define CAL_COLS     7
 #define CAL_ROWS     6
@@ -63,6 +64,7 @@ static lv_obj_t* almanac_label;
 static lv_obj_t *month_label;
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
 static lv_obj_t *battery_label;
+static lv_obj_t *wifi_label;
 static lv_obj_t* yi_label;
 static lv_obj_t* ji_label;
 static lv_obj_t* ganzhi_label;
@@ -226,8 +228,16 @@ void calendar_ui_create(lv_obj_t *parent)
                           LV_TEXT_ALIGN_LEFT, 0, "");
     lv_obj_set_height(yi_label, 14);
     lv_obj_set_height(ji_label, 14);
-    battery_label = make_label(bottom_bar, BAR_W - BAR_BATTERY_W, 9, BAR_BATTERY_W,
+    /* Battery on the first line of the bar, Wi-Fi on the second, both right
+       aligned to the same edge as the rule above them. */
+    battery_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 2, BAR_STATUS_W,
                                &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "--%");
+    /* Montserrat rather than a calendar face: it is LVGL's default font, so it
+       is linked either way, and it is the only one here carrying LV_SYMBOL_WIFI. */
+    wifi_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 16, BAR_STATUS_W,
+                            &lv_font_montserrat_14, LV_TEXT_ALIGN_RIGHT, 0, "");
+    lv_obj_set_height(wifi_label, 16);
+    calendar_ui_update_wifi(CALENDAR_WIFI_UNSET);
 }
 
 lv_obj_t *calendar_ui_root(void)
@@ -280,6 +290,25 @@ void calendar_ui_update_battery(uint8_t percent)
     }
     snprintf(buf, sizeof(buf), "%u%%", percent);
     lv_label_set_text(battery_label, buf);
+}
+
+void calendar_ui_update_wifi(calendar_wifi_state_t state)
+{
+    /* The wifi glyph plus a marker, because there is no colour and no room for a
+       second icon. Every state carries a marker: a bare glyph would read as a
+       live link, and the radio is in fact down in three of the four. Only the
+       "..." state means the radio is up right now. */
+    static const char *const wifi_text[] = {
+        [CALENDAR_WIFI_UNSET]  = LV_SYMBOL_WIFI " ?",
+        [CALENDAR_WIFI_ACTIVE] = LV_SYMBOL_WIFI "...",
+        [CALENDAR_WIFI_SYNCED] = LV_SYMBOL_WIFI LV_SYMBOL_OK,
+        [CALENDAR_WIFI_FAILED] = LV_SYMBOL_WIFI " !",
+    };
+
+    if (wifi_label == NULL || (unsigned)state >= sizeof(wifi_text) / sizeof(wifi_text[0])) {
+        return;
+    }
+    lv_label_set_text(wifi_label, wifi_text[state]);
 }
 
 static void clear_calendar_grid(void)
