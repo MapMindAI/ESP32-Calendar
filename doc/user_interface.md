@@ -306,9 +306,12 @@ underneath. It has no live data: it is redrawn only when a draw happens.
 
 | Widget | Position | Content |
 |---|---|---|
-| `tarot_img[3]` | x = 2 / 132 / 262, y = 14 | the decoded card, 128 × 219, 1-bit black/white |
-| `tarot_name[3]` | x = 2 / 132 / 262, y = 237 (128 × 46) | the card's name, 12 px, centred, wraps to a second line |
+| `tarot_img[3]` | x = -8 / 120 / 248, y = 14 | the decoded card, 128 × 219, 1-bit black/white |
+| `tarot_name[3]` | x = -8 / 120 / 248, y = 237 (128 × 46) | the card's name, 12 px, centred, wraps to a second line |
 | `tarot_msg` | centred | `No SD card` / `No images found` / `Card read failed`, 18 px |
+
+The columns butt together with no gap (`TAROT_GAP 0`) and start at x = -8, so the first card is
+clipped 8 px on the left and the row ends at x = 376.
 
 `Tarot_ManagerInit()` mounts the card and lists `/sdcard/tarot/images/*.jpg`; `Tarot_ShowRandom()`
 decodes three distinct cards down to the 1-bit panel and is called when the view is entered (BOOT

@@ -109,7 +109,8 @@ never renders a freed buffer.
 | `TAROT_MAX_FILES` | `tarot_manager.cpp` | 96 | size of the name table (78 cards today) |
 | `TAROT_CARD_SLOTS` | `tarot_page.h` | 3 | cards per draw / columns |
 | `TAROT_CARD_WIDTH` / `TAROT_CARD_HEIGHT` | `tarot_page.h` | 128 / 219 | on-screen card size in pixels |
-| `TAROT_IMG_Y`, `TAROT_LABEL_Y`, `TAROT_MARGIN`, `TAROT_GAP` | `tarot_page.c` | — | column layout |
+| `TAROT_MARGIN` / `TAROT_GAP` | `tarot_page.c` | -8 / 0 | column start and spacing; columns sit at x = -8, 120, 248, so the first is clipped 8 px left and the row ends at 376 |
+| `TAROT_IMG_Y` / `TAROT_LABEL_Y` | `tarot_page.c` | 14 / 237 | top of the card and of its caption |
 
 The dither threshold table is `bayer4` in `tarot_manager.cpp`; the page uses
 `lv_font_calendar_12` for the captions.
