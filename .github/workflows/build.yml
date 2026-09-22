@@ -21,7 +21,17 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Restore ESP-IDF dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            managed_components
+            .idf-component-cache
+          key: esp-idf-v5.5.2-${{ runner.os }}-${{ hashFiles('dependencies.lock', 'main/idf_component.yml') }}
+
       - name: Build firmware
+        env:
+          IDF_COMPONENT_CACHE_PATH: ${{ github.workspace }}/.idf-component-cache
         run: . "$IDF_PATH/export.sh" && idf.py build
 
       - name: Upload firmware
