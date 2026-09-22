@@ -229,7 +229,8 @@ device's own configuration hotspot is doing; all text entry happens on the phone
 | State | `screen_label_cfg_state` | `screen_label_cfg_ap` |
 |---|---|---|
 | view closed / idle | `Long-press BOOT\nto configure` | unchanged |
-| view opened | `Starting hotspot...` | `Hotspot: ESP32-Calendar\nPassword: calendar` |
+| view opened / host disabled | `Long-press KEY\nto enable hotspot` | `Hotspot disabled\nLong-press BOOT to exit` |
+| KEY long press | `Starting hotspot...` | `Hotspot: ESP32-Calendar\nPassword: calendar` |
 | hotspot + portal up | `Hotspot ready\nJoin it, page pops up` | `Hotspot: ESP32-Calendar\nPassword: calendar\nPortal: 192.168.4.1` |
 | phone joined the hotspot | `Phone connected\nOpen the setup page` | unchanged |
 | credentials submitted | `Connecting to\n<ssid>...` | `Portal: 192.168.4.1` |
@@ -242,7 +243,8 @@ line here would render blank until the font is regenerated in GUI Guider (see §
 
 ### 3.3 Wi-Fi setup flow
 
-Nothing runs until the user opens the view. `Config_LoopTask` then:
+Opening the view does not bring up Wi-Fi. With the setup view visible, a long press on **KEY**
+starts the configuration host; `Config_LoopTask` then:
 
 1. `espwifi_config_start()` — NVS, netifs and the Wi-Fi driver (re-)initialise, the device goes
    `WIFI_MODE_APSTA`, starts a WPA2-PSK softAP named `ESP32-Calendar` (passphrase `calendar`, both
@@ -259,10 +261,11 @@ Nothing runs until the user opens the view. `Config_LoopTask` then:
    for `IP_EVENT_STA_GOT_IP`. On success the credentials are written to the NVS namespace
    `wificfg` (keys `ssid`, `pass`) and `/status` shows the IP; on failure the page returns to the
    scan list after 3 s and the AP stays up for a retry.
-6. Long-pressing BOOT again closes the view. `espwifi_config_stop()` stops the DNS/HTTP servers and
+6. Long-pressing BOOT again closes the view. If the host is running, `espwifi_config_stop()` stops the DNS/HTTP servers and
    tears Wi-Fi **all the way down** — the radio is not kept up after setup — then `Config_LoopTask`
-   sets `CFG_SYNC_NOW`, which makes `Time_SyncTask` open a sync window straight away with the new
-   credentials. From then on the credentials are only used inside those windows (§3.4).
+   sets `CFG_SYNC_NOW` when a running host closes, which makes `Time_SyncTask` open a sync window
+   straight away with the new credentials. From then on the credentials are only used inside those
+   windows (§3.4).
 
 ### 3.4 Daily Wi-Fi sync window
 
@@ -278,7 +281,7 @@ ends of it, which is the only feedback the dashboard gives about the radio.
 |---|---|
 | boot | as soon as `Time_SyncTask` starts |
 | daily | `TIME_SYNC_HOUR`:`TIME_SYNC_MINUTE` local time — 03:30 by default |
-| after setup | the setup view closing sets `CFG_SYNC_NOW` |
+| after setup | closing a running setup host sets `CFG_SYNC_NOW` |
 | retry | `TIME_SYNC_RETRY_MINUTES` (30) after a window that got no answer, or one that ran while the clock was still invalid |
 
 All four constants sit at the top of `user_app.cpp`. Moving the daily window means editing
@@ -308,21 +311,22 @@ one bit per wake, in the priority order below.
 
 | Button | Gesture | Action |
 |---|---|---|
-| BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal |
+| BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal if it is running |
 | BOOT | single / double click | unused |
-| KEY | single / double / long press | Dispatch to the current page's placeholder handler; no action yet |
+| KEY | long press | On the Wi-Fi setup view, start the configuration hotspot and captive portal; otherwise no action yet |
+| KEY | single / double click | Dispatch to the current page's placeholder handler; no action yet |
 
 Notes on the semantics as implemented:
 
 * Long press fires on **press start**, not release — the view flips while the button is still down.
 * KEY dispatches to `calendar_key_<gesture>()` on the dashboard and
-  `wifi_setup_key_<gesture>()` on the setup page. All six handlers are intentionally empty until
-  page-specific interactions are defined.
-* The setup view owns the radio while it is open: opening it takes `WifiMutex` and starts the hotspot
-  and captive portal, closing it stops them, tears Wi-Fi down and releases the mutex. If a sync
-  window (§3.4) is in progress the view sits on `Starting hotspot...` until it finishes — at most
-  about 35 s. The button tasks do the visibility flip and signal `ConfigGroups`; `Config_LoopTask`
-  does the Wi-Fi work.
+  `wifi_setup_key_<gesture>()` on the setup page. The setup page's long press requests the hotspot;
+  the other five handlers are intentionally empty until page-specific interactions are defined.
+* The setup view owns the radio only after its KEY long press: that request takes `WifiMutex` and
+  starts the hotspot and captive portal. Closing the view stops them if running, tears Wi-Fi down
+  and releases the mutex. If a sync window (§3.4) is in progress, the page sits on `Starting
+  hotspot...` until it finishes — at most about 35 s. The button tasks do the visibility flip and
+  signal `ConfigGroups`; `Config_LoopTask` does the Wi-Fi work.
 * The audio recorder/player demo (BOOT single = play recording, BOOT double = record, KEY single/
   double = `canon.pcm`) was removed together with the audio view and `Codec_LoopTask`.
 
