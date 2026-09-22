@@ -132,6 +132,10 @@ void Calendar_LoopTask(void* arg) {
   for (;;) {
 #if LVGL_DEBUG_LOG
     uint32_t uptime_minutes = (uint32_t)(esp_timer_get_time() / (60LL * 1000000LL));
+    // no need to call in the very first run loop
+    if (last_uptime_minutes == UINT32_MAX) {
+      last_uptime_minutes = uptime_minutes;
+    }
     if (uptime_minutes != last_uptime_minutes && Lvgl_lock(-1)) {
       calendar_ui_update_uptime(uptime_minutes);
       Lvgl_unlock();
@@ -171,7 +175,7 @@ void Calendar_LoopTask(void* arg) {
 
 void Battery_LoopTask(void* arg) {
   int shown_level = -1;
-
+  vTaskDelay(pdMS_TO_TICKS(1000));
   for (;;) {
     uint8_t level = Adc_GetBatteryLevel();
     if (level != shown_level && Lvgl_lock(-1)) {
