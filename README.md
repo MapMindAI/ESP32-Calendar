@@ -14,8 +14,8 @@ icon under the battery percentage reports how the last window went (`✓` synced
 `...` window open, `!` no answer, `?` not configured). Wi-Fi itself is configured over a
 captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below).
 
-A third view shows a random tarot card read from the SD card; long-pressing **BOOT** cycles the
-dashboard, the tarot card and the Wi-Fi setup view (see **Tarot** below).
+A third view shows three random tarot cards, with their names, read from the SD card; long-pressing
+**BOOT** cycles the dashboard, the tarot cards and the Wi-Fi setup view (see **Tarot** below).
 
 The tree still starts from Waveshare's factory self-test demo; see **[AGENTS.md](AGENTS.md)** §10
 for what is still residue.
@@ -60,9 +60,9 @@ with `idf.py -p <port> erase-flash`.
 ## Tarot
 
 Long-press **BOOT** to cycle the views: dashboard → tarot → Wi-Fi setup → dashboard. Entering the
-tarot view decodes a random card; a single click on **KEY** draws the next one, never repeating the
-current card. With no card inserted, or no images on it, the view shows `No SD card` / `No images
-found` instead.
+tarot view draws three random cards, one per column, each with its name underneath; a single click on
+**KEY** draws three new ones. The three are always distinct. With no card inserted, or no images on
+it, the view shows `No SD card` / `No images found` instead.
 
 Cards are read from the card's root:
 
@@ -84,9 +84,10 @@ cp -r tarot/images /Volumes/<card>/tarot/     # macOS, mounted volume
 cp -r tarot/images /media/$USER/<card>/tarot/ # Linux, mounted volume
 ```
 
-The files are 350 × 600 JPEGs; the firmware mounts the card at `/sdcard`, decodes each on demand and
-reduces it to the panel's 1 bit with a 2 × 2 box average and a 4 × 4 ordered dither. The card source,
-decoding pipeline and error states are in **[doc/tarot.md](doc/tarot.md)**.
+The files are 350 × 600 JPEGs; the firmware mounts the card at `/sdcard`, decodes three per draw and
+reduces each to the panel's 1 bit with a box average plus a 4 × 4 ordered dither. Card names come
+from the same dataset, checked into the firmware. The card source, names, decoding pipeline and error
+states are in **[doc/tarot.md](doc/tarot.md)**.
 
 ## Hardware
 

@@ -45,7 +45,8 @@ by calendar functionality — see §10 for what is residue and what is real.
 │   │   ├── wifi_portal.*       # Captive-portal DNS + HTTP setup page
 │   │   ├── time_manager.*      # POSIX system clock: seeded from the PCF85063, corrected by SNTP
 │   │   ├── sensor_manager.*    # Temperature/humidity behind one interface; range-checked and smoothed
-│   │   ├── tarot_manager.*     # Mounts the SD card, scans /sdcard/tarot/images, decodes + dithers a random card
+│   │   ├── tarot_manager.*     # Mounts the SD card, scans /sdcard/tarot/images, decodes + dithers 3 random cards
+│   │   ├── tarot_names.h       # Generated {file, name} card-name table (source: metabismuth/tarot-json)
 │   │   └── ble_scan_bsp.*      # BLE scan; pushes discovered MACs onto ble_queue (unused, see §10)
 │   ├── ui_bsp/
 │   │   ├── page_calendar/      # Hand-written calendar page: calendar_ui.*, calendar_calc.*, almanac assets
@@ -66,7 +67,7 @@ by calendar functionality — see §10 for what is residue and what is real.
 |---|---|
 | `README.md` | Board specification, the peripherals this firmware drives and their pins, build/flash quickstart, vendor and datasheet links |
 | `doc/user_interface.md` | Display constraints, the one-screen/three-container view model, every widget and what updates it, button gestures and bindings, fonts and assets |
-| `doc/tarot.md` | The tarot view: SD-card deck layout, the JPEG decode → 1-bit ordered-dither pipeline, memory, tunables and error states |
+| `doc/tarot.md` | The tarot view: SD-card deck layout, the card-name table, the JPEG decode → 1-bit ordered-dither pipeline, memory, tunables and error states |
 | `doc/data_sources.md` | Where the RTC/SNTP time and SHTC3 readings come from, how they are validated, and when a changed value reaches the panel |
 | `doc/almanac.md` | The 宜忌 / 十二建除 / 十二值神 day table: its generated C assets and font, and how to rebuild them — from `lunar_python`, or from the checked-in CSV with `--from-csv` |
 

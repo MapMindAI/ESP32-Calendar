@@ -301,20 +301,22 @@ With nothing stored in the NVS namespace `wificfg`, a window ends immediately an
 
 ### 3.5 Tarot view — `tarot_page_root()`
 
-A full-screen view showing one random card from the SD card. It has no live data: it is redrawn only
-when a card is drawn.
+A full-screen view showing three random cards from the SD card, one per column, each with its name
+underneath. It has no live data: it is redrawn only when a draw happens.
 
 | Widget | Position | Content |
 |---|---|---|
-| `tarot_page_img` | centred | the decoded card, 175 × 300, 1-bit black/white |
-| `tarot_page_msg` | centred | `No SD card` / `No images found` / `Card read failed`, 18 px |
+| `tarot_img[3]` | x = 4 / 136 / 268, y = 14 | the decoded card, 128 × 219, 1-bit black/white |
+| `tarot_name[3]` | x = 4 / 136 / 268, y = 237 (128 × 46) | the card's name, 12 px, centred, wraps to a second line |
+| `tarot_msg` | centred | `No SD card` / `No images found` / `Card read failed`, 18 px |
 
 `Tarot_ManagerInit()` mounts the card and lists `/sdcard/tarot/images/*.jpg`; `Tarot_ShowRandom()`
-decodes one card down to the 1-bit panel and is called when the view is entered (BOOT long press) and
-on a KEY single click. The decode runs outside the LVGL lock; only the widget update is inside it.
+decodes three distinct cards down to the 1-bit panel and is called when the view is entered (BOOT
+long press) and on a KEY single click. The decode runs outside the LVGL lock; only the widget update
+is inside it.
 
-The card source, the decode → ordered-dither pipeline, its tunables and the error states are in
-[`tarot.md`](tarot.md).
+The card source, the name table, the decode → ordered-dither pipeline, its tunables and the error
+states are in [`tarot.md`](tarot.md).
 
 ## 4. Button interface
 

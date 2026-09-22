@@ -6,13 +6,13 @@ extern "C" {
 #endif
 
 /* Source of the tarot view: mounts the SD card, lists the cards under
- * /sdcard/tarot/images and decodes a random one to the mono panel.
+ * /sdcard/tarot/images and decodes three random ones to the mono panel.
  */
 
 /* Mount the SD card and list the card files. Safe before the display exists. */
 void Tarot_ManagerInit(void);
 
-/* Decode and display a random card, avoiding an immediate repeat. Falls back to
+/* Decode and display three random cards, distinct within the draw. Falls back to
  * a status message when the card or its images are missing. */
 void Tarot_ShowRandom(void);
 

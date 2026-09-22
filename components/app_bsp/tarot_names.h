@@ -1,0 +1,96 @@
+#pragma once
+
+/* Card display names, keyed by image file name.
+ *
+ * Sourced from the Rider-Waite-Smith metadata in
+ * https://github.com/metabismuth/tarot-json/blob/master/tarot-images.json
+ * (each entry's `name`, keyed by its `img`). See doc/tarot.md for how to
+ * refresh it. */
+
+typedef struct {
+  const char* file;
+  const char* name;
+} tarot_card_name_t;
+
+static const tarot_card_name_t tarot_card_names[] = {
+  {"c01.jpg", "Ace of Cups"},
+  {"c02.jpg", "Two of Cups"},
+  {"c03.jpg", "Three of Cups"},
+  {"c04.jpg", "Four of Cups"},
+  {"c05.jpg", "Five of Cups"},
+  {"c06.jpg", "Six of Cups"},
+  {"c07.jpg", "Seven of Cups"},
+  {"c08.jpg", "Eight of Cups"},
+  {"c09.jpg", "Nine of Cups"},
+  {"c10.jpg", "Ten of Cups"},
+  {"c11.jpg", "Page of Cups"},
+  {"c12.jpg", "Knight of Cups"},
+  {"c13.jpg", "Queen of Cups"},
+  {"c14.jpg", "King of Cups"},
+  {"m00.jpg", "The Fool"},
+  {"m01.jpg", "The Magician"},
+  {"m02.jpg", "The High Priestess"},
+  {"m03.jpg", "The Empress"},
+  {"m04.jpg", "The Emperor"},
+  {"m05.jpg", "The Hierophant"},
+  {"m06.jpg", "The Lovers"},
+  {"m07.jpg", "The Chariot"},
+  {"m08.jpg", "Strength"},
+  {"m09.jpg", "The Hermit"},
+  {"m10.jpg", "Wheel of Fortune"},
+  {"m11.jpg", "Justice"},
+  {"m12.jpg", "The Hanged Man"},
+  {"m13.jpg", "Death"},
+  {"m14.jpg", "Temperance"},
+  {"m15.jpg", "The Devil"},
+  {"m16.jpg", "The Tower"},
+  {"m17.jpg", "The Star"},
+  {"m18.jpg", "The Moon"},
+  {"m19.jpg", "The Sun"},
+  {"m20.jpg", "Judgement"},
+  {"m21.jpg", "The World"},
+  {"p01.jpg", "Ace of Pentacles"},
+  {"p02.jpg", "Two of Pentacles"},
+  {"p03.jpg", "Three of Pentacles"},
+  {"p04.jpg", "Four of Pentacles"},
+  {"p05.jpg", "Five of Pentacles"},
+  {"p06.jpg", "Six of Pentacles"},
+  {"p07.jpg", "Seven of Pentacles"},
+  {"p08.jpg", "Eight of Pentacles"},
+  {"p09.jpg", "Nine of Pentacles"},
+  {"p10.jpg", "Ten of Pentacles"},
+  {"p11.jpg", "Page of Pentacles"},
+  {"p12.jpg", "Knight of Pentacles"},
+  {"p13.jpg", "Queen of Pentacles"},
+  {"p14.jpg", "King of Pentacles"},
+  {"s01.jpg", "Ace of Swords"},
+  {"s02.jpg", "Two of Swords"},
+  {"s03.jpg", "Three of Swords"},
+  {"s04.jpg", "Four of Swords"},
+  {"s05.jpg", "Five of Swords"},
+  {"s06.jpg", "Six of Swords"},
+  {"s07.jpg", "Seven of Swords"},
+  {"s08.jpg", "Eight of Swords"},
+  {"s09.jpg", "Nine of Swords"},
+  {"s10.jpg", "Ten of Swords"},
+  {"s11.jpg", "Page of Swords"},
+  {"s12.jpg", "Knight of Swords"},
+  {"s13.jpg", "Queen of Swords"},
+  {"s14.jpg", "King of Swords"},
+  {"w01.jpg", "Ace of Wands"},
+  {"w02.jpg", "Two of Wands"},
+  {"w03.jpg", "Three of Wands"},
+  {"w04.jpg", "Four of Wands"},
+  {"w05.jpg", "Five of Wands"},
+  {"w06.jpg", "Six of Wands"},
+  {"w07.jpg", "Seven of Wands"},
+  {"w08.jpg", "Eight of Wands"},
+  {"w09.jpg", "Nine of Wands"},
+  {"w10.jpg", "Ten of Wands"},
+  {"w11.jpg", "Page of Wands"},
+  {"w12.jpg", "Knight of Wands"},
+  {"w13.jpg", "Queen of Wands"},
+  {"w14.jpg", "King of Wands"},
+};
+
+#define TAROT_CARD_NAME_COUNT (sizeof(tarot_card_names) / sizeof(tarot_card_names[0]))
