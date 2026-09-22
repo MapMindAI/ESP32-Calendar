@@ -14,7 +14,7 @@ icon under the battery percentage reports how the last window went (`✓` synced
 `...` window open, `!` no answer, `?` not configured). Wi-Fi itself is configured over a
 captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below).
 
-The tree still starts from Waveshare's factory self-test demo (the CMake project is named `03_Fac`)
+The tree still starts from Waveshare's factory self-test demo
 and two of its screens survive behind long-presses; see **[AGENTS.md](AGENTS.md)** §10 for what is
 still residue.
 
