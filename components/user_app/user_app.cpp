@@ -232,8 +232,7 @@ void Time_SyncTask(void *arg) {
 static void show_view(lv_obj_t *view)
 {
     lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(init_ui.screen_cont_wifi_setup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(view, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -244,7 +243,7 @@ void BOOT_LoopTask(void *arg) {
             if(0 == is_CfgViewOn) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
-                    show_view(init_ui.screen_cont_4);
+                    show_view(init_ui.screen_cont_wifi_setup);
                     Lvgl_unlock();
                     Lvgl_RequestRender(6);
                 }
@@ -262,25 +261,51 @@ void BOOT_LoopTask(void *arg) {
     }
 }
 
+/* KEY gestures are dispatched by the visible page. Keep these entry points
+   separate so each page can gain its own interaction without changing button
+   decoding or view navigation. */
+static void calendar_key_single_click(void)
+{
+}
+
+static void calendar_key_double_click(void)
+{
+}
+
+static void calendar_key_long_press(void)
+{
+}
+
+static void wifi_setup_key_single_click(void)
+{
+}
+
+static void wifi_setup_key_double_click(void)
+{
+}
+
+static void wifi_setup_key_long_press(void)
+{
+}
+
 void KEY_LoopTask(void *arg) {
-    bool is_cont3en = 0;
     for(;;) {
         EventBits_t even = xEventGroupWaitBits(GP18ButtonGroups,(0x01 | 0x02 | 0x04),pdTRUE,pdFALSE,pdMS_TO_TICKS(2000));
-        if(even & 0x04) {
-            if(0 == is_cont3en) {
-                is_cont3en = 1;
-                if(Lvgl_lock(-1)) {
-                    show_view(init_ui.screen_cont_3);
-                    Lvgl_unlock();
-                    Lvgl_RequestRender(8);
-                }
-            } else {
-                is_cont3en = 0;
-                if(Lvgl_lock(-1)) {
-                    show_view(calendar_ui_root());
-                    Lvgl_unlock();
-                    Lvgl_RequestRender(9);
-                }
+        if(is_CfgViewOn) {
+            if(even & 0x01) {
+                wifi_setup_key_single_click();
+            } else if(even & 0x02) {
+                wifi_setup_key_double_click();
+            } else if(even & 0x04) {
+                wifi_setup_key_long_press();
+            }
+        } else {
+            if(even & 0x01) {
+                calendar_key_single_click();
+            } else if(even & 0x02) {
+                calendar_key_double_click();
+            } else if(even & 0x04) {
+                calendar_key_long_press();
             }
         }
     }

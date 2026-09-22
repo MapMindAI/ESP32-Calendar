@@ -23,23 +23,17 @@ typedef struct
 	lv_obj_t *screen_cont_2;
 	lv_obj_t *screen_label_3;
 	lv_obj_t *screen_label_4;
-	lv_obj_t *screen_img_1;
 	lv_obj_t *screen_label_6;
 	lv_obj_t *screen_label_5;
-	lv_obj_t *screen_img_2;
 	lv_obj_t *screen_label_7;
 	lv_obj_t *screen_label_8;
-	lv_obj_t *screen_img_3;
-	lv_obj_t *screen_img_4;
 	lv_obj_t *screen_label_9;
 	lv_obj_t *screen_label_10;
 	lv_obj_t *screen_label_11;
 	lv_obj_t *screen_label_12;
 	lv_obj_t *screen_label_13;
 	lv_obj_t *screen_label_14;
-	lv_obj_t *screen_cont_3;
-	lv_obj_t *screen_img_5;
-	lv_obj_t *screen_cont_4;
+	lv_obj_t *screen_cont_wifi_setup;
 	lv_obj_t *screen_label_cfg_title;
 	lv_obj_t *screen_label_cfg_state;
 	lv_obj_t *screen_label_cfg_ap;
@@ -68,13 +62,6 @@ extern lv_ui guider_ui;
 
 
 void setup_scr_screen(lv_ui *ui);
-LV_IMG_DECLARE(_battery_alpha_30x30);
-LV_IMG_DECLARE(_battery_alpha_30x30);
-LV_IMG_DECLARE(_shidu_alpha_30x30);
-LV_IMG_DECLARE(_wendu_alpha_30x30);
-LV_IMG_DECLARE(_ein_alpha_400x300);
-LV_IMG_DECLARE(_3_alpha_200x200);
-
 LV_FONT_DECLARE(lv_font_MISANSMEDIUM_100)
 LV_FONT_DECLARE(lv_font_MISANSMEDIUM_20)
 LV_FONT_DECLARE(lv_font_MISANSMEDIUM_25)
