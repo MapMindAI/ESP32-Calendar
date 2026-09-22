@@ -6,19 +6,22 @@
 #include "button_bsp.h"
 #include "calendar_ui.h"
 #include "sensor_manager.h"
+#include "tarot_manager.h"
+#include "tarot_page.h"
 #include "time_manager.h"
 
 I2cMasterBus I2cbus(14, 13, 0);
 EventGroupHandle_t ConfigGroups;
 SemaphoreHandle_t WifiMutex;
 wifi_setup_page_t WifiSetupPage;
-bool IsCfgViewOn = false;
+app_view_t CurrentView = APP_VIEW_CALENDAR;
 
 void UserApp_AppInit() {
   Custom_ButtonInit();
   Adc_PortInit();
   time_manager_init(&I2cbus);
   sensor_manager_init(&I2cbus);
+  Tarot_ManagerInit();
   ConfigGroups = xEventGroupCreate();
   WifiMutex = xSemaphoreCreateMutex();
   assert(WifiMutex != NULL);
@@ -29,6 +32,7 @@ void UserApp_UiInit() {
 
   wifi_setup_page_init(&WifiSetupPage);
   calendar_ui_create(WifiSetupPage.screen);
+  tarot_page_init(WifiSetupPage.screen);
   calendar_ui_refresh_all(&empty);
 #if LVGL_DEBUG_LOG
     calendar_ui_update_uptime((uint32_t)(esp_timer_get_time() / (60LL * 1000000LL)));
@@ -43,7 +47,7 @@ void UserApp_TaskInit() {
   xTaskCreatePinnedToCore(Sensor_LoopTask, "Sensor_LoopTask", 4 * 1024, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(Battery_LoopTask, "Battery_LoopTask", 4 * 1024, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(Time_SyncTask, "Time_SyncTask", 5 * 1024, NULL, 2, NULL, 1);
-  xTaskCreatePinnedToCore(BOOT_LoopTask, "BOOT_LoopTask", 4 * 1024, NULL, 2, NULL, 1);
-  xTaskCreatePinnedToCore(KEY_LoopTask, "KEY_LoopTask", 4 * 1024, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(BOOT_LoopTask, "BOOT_LoopTask", 6 * 1024, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(KEY_LoopTask, "KEY_LoopTask", 6 * 1024, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(Config_LoopTask, "Config_LoopTask", 5 * 1024, NULL, 2, NULL, 1);
 }

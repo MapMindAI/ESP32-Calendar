@@ -12,11 +12,19 @@
 #define CFG_REQ_ENABLE 0x04 /* start the setup hotspot and captive portal */
 #define CFG_SYNC_NOW 0x08   /* open a time-sync window now */
 
+/* The view currently on screen. Exactly one of the three containers is visible;
+ * BOOT long press cycles calendar -> tarot -> Wi-Fi set up -> calendar. */
+typedef enum {
+  APP_VIEW_CALENDAR,
+  APP_VIEW_TAROT,
+  APP_VIEW_WIFI,
+} app_view_t;
+
 extern I2cMasterBus I2cbus;
 extern EventGroupHandle_t ConfigGroups;
 extern SemaphoreHandle_t WifiMutex;
 extern wifi_setup_page_t WifiSetupPage;
-extern bool IsCfgViewOn;
+extern app_view_t CurrentView;
 
 void Calendar_LoopTask(void* arg);
 void CalendarView_AdvanceDay(void);

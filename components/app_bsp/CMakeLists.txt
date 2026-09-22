@@ -6,6 +6,7 @@ idf_component_register(
     "wifi_portal.c"
     "time_manager.cpp"
     "sensor_manager.cpp"
+    "tarot_manager.cpp"
     PRIV_REQUIRES
     esp_wifi
     esp_event
