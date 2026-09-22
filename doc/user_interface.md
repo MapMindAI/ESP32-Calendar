@@ -97,9 +97,9 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `date_label` | 16, 18 | `%04d·%02d·%02d`, 16 px | `Calendar_LoopTask` | on date change |
 | `weekday_label` | 16, 42 | `MONDAY` … `SUNDAY`, 12 px | `Calendar_LoopTask` | on date change |
 | `time_label` | 15, 68 (133 wide) | `%02d:%02d`, 48 px, fixed width | `Calendar_LoopTask` | on minute change |
-| `temperature_label` | 16, 136 | `%.1f°C`, 16 px | `Sensor_LoopTask` | on threshold |
+| `temperature_label` | 16, 136 | `%.1f°`, 16 px | `Sensor_LoopTask` | on threshold |
 | `env_separator` | 78, 137 (16 tall) | 1 px rule between the two readings | — | — |
-| `humidity_label` | right-aligned to 148, 136 | `%.0f%% RH`, 16 px | `Sensor_LoopTask` | on threshold |
+| `humidity_label` | right-aligned to 148, 136 | `%.0f%%`, 16 px | `Sensor_LoopTask` | on threshold |
 | `week_info_label` | 16, 180 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
 | `almanac_label` | 16, 208 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
 | `vertical_separator` | 158, 15 (220 tall) | column rule | — | — |
@@ -124,12 +124,13 @@ behind it actually moved:
 |---|---|---|
 | Clock | system clock, 1 s | when the minute changes |
 | Date, weekday, week, month grid, bottom bar | system clock, 1 s | when the day changes (`calendar_ui_refresh_all`) |
-| Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 %, or after 10 minutes without a repaint |
+| Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 % |
 | Battery | ADC1 channel 3, 60 s | when the percentage changes |
 | Wi-Fi icon | the sync window itself | twice per window: opened, and closed with its outcome |
 | Almanac result | generated 2026--2030 day table, 1 s | when the day changes |
 
-In practice the panel redraws once a minute.
+The LVGL task is event-driven: it runs a refresh only after one of these data
+changes or a button-driven view switch. The panel stays idle between them.
 
 #### Empty states
 

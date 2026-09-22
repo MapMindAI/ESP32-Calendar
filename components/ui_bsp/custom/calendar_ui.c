@@ -179,10 +179,10 @@ void calendar_ui_create(lv_obj_t *parent)
 
     lv_obj_t *environment_panel = make_container(left_panel, 2, 120, 132, 22);
 
-    temperature_label = make_label(environment_panel, 0, 2, 58, &lv_font_calendar_16, LV_TEXT_ALIGN_LEFT, 0, "");
+    temperature_label = make_label(environment_panel, 0, 2, 58, &lv_font_calendar_18, LV_TEXT_ALIGN_LEFT, 0, "");
     make_line(environment_panel, 62, 3, env_separator_points, 0, 16);
     /* Right-aligned, so the row stays balanced when the reading loses a digit. */
-    humidity_label = make_label(environment_panel, 68, 2, 64, &lv_font_calendar_16, LV_TEXT_ALIGN_RIGHT, 0, "");
+    humidity_label = make_label(environment_panel, 68, 2, 64, &lv_font_calendar_18, LV_TEXT_ALIGN_RIGHT, 0, "");
 
     week_info_label = make_label(left_panel, 2, 166, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
     /* 十二建除 and 十二值神 share one line: 建除：X 值神：Y is 120 px of the 132 px column. */
@@ -271,12 +271,12 @@ void calendar_ui_update_environment(float temperature_c, float humidity_percent,
     /* Never show 0°C / 0% for a sensor that has not answered yet — it reads as
        real data. */
     if (!valid) {
-        lv_label_set_text(temperature_label, "--.-°C");
-        lv_label_set_text(humidity_label, "--% RH");
+        lv_label_set_text(temperature_label, "--.-°");
+        lv_label_set_text(humidity_label, "--%");
         return;
     }
-    snprintf(temp_buf, sizeof(temp_buf), "%.1f°C", temperature_c);
-    snprintf(hum_buf, sizeof(hum_buf), "%.0f%% RH", humidity_percent);
+    snprintf(temp_buf, sizeof(temp_buf), "%.1f°", temperature_c);
+    snprintf(hum_buf, sizeof(hum_buf), "%.0f%%", humidity_percent);
     lv_label_set_text(temperature_label, temp_buf);
     lv_label_set_text(humidity_label, hum_buf);
 }

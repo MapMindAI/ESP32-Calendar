@@ -43,8 +43,7 @@ EventGroupHandle_t ConfigGroups;
    environment row on a threshold, everything else when the date rolls over. */
 #define SENSOR_READ_INTERVAL_MS      60000
 #define TEMPERATURE_REFRESH_THRESHOLD 0.2f
-#define HUMIDITY_REFRESH_THRESHOLD    1.0f
-#define ENVIRONMENT_MAX_REFRESH_MIN   10
+#define HUMIDITY_REFRESH_THRESHOLD 1.0f
 #define BATTERY_READ_INTERVAL_MS       60000
 
 static bool is_CfgViewOn = false;
@@ -86,6 +85,7 @@ void Calendar_LoopTask(void *arg) {
             if(Lvgl_lock(-1)) {
                 calendar_ui_refresh_all(&data);
                 Lvgl_unlock();
+                Lvgl_RequestRender(1);
             }
             last_valid = true;
             last_year = local.tm_year;
@@ -96,6 +96,7 @@ void Calendar_LoopTask(void *arg) {
             if(Lvgl_lock(-1)) {
                 calendar_ui_update_time(local.tm_hour, local.tm_min, true);
                 Lvgl_unlock();
+                Lvgl_RequestRender(2);
             }
             last_minute = local.tm_min;
         }
@@ -112,20 +113,20 @@ void Battery_LoopTask(void *arg) {
         if(level != shown_level && Lvgl_lock(-1)) {
             calendar_ui_update_battery(level);
             Lvgl_unlock();
+            Lvgl_RequestRender(3);
             shown_level = level;
         }
         vTaskDelay(pdMS_TO_TICKS(BATTERY_READ_INTERVAL_MS));
     }
 }
 
-/* Temperature and humidity. Reads once a minute; repaints only when the value
-   crosses a threshold, or after ENVIRONMENT_MAX_REFRESH_MIN of no movement. */
+/* Temperature and humidity. Reads once a minute; repaints only when the
+   displayed value changes enough to cross a threshold. */
 void Sensor_LoopTask(void *arg) {
     environment_data_t environment;
     float shown_temperature = 0.0f;
     float shown_humidity = 0.0f;
     bool shown_valid = false;
-    uint32_t minutes_since_refresh = ENVIRONMENT_MAX_REFRESH_MIN;
     for(;;) {
         sensor_manager_read(&environment);
         bool publish = false;
@@ -134,30 +135,33 @@ void Sensor_LoopTask(void *arg) {
         } else if(environment.valid &&
                   (fabsf(environment.temperature_c - shown_temperature) >= TEMPERATURE_REFRESH_THRESHOLD ||
                    fabsf(environment.humidity_percent - shown_humidity) >= HUMIDITY_REFRESH_THRESHOLD)) {
-            publish = true;
-        } else if(minutes_since_refresh >= ENVIRONMENT_MAX_REFRESH_MIN) {
-            publish = true;
+          publish = true;
         }
         if(publish) {
             if(Lvgl_lock(-1)) {
                 calendar_ui_update_environment(environment.temperature_c,environment.humidity_percent,environment.valid);
                 Lvgl_unlock();
+                Lvgl_RequestRender(4);
             }
             shown_temperature = environment.temperature_c;
             shown_humidity = environment.humidity_percent;
             shown_valid = environment.valid;
-            minutes_since_refresh = 0;
-        } else {
-            minutes_since_refresh++;
         }
         vTaskDelay(pdMS_TO_TICKS(SENSOR_READ_INTERVAL_MS));
     }
 }
 
 static void wifi_status_publish(calendar_wifi_state_t state) {
+  static calendar_wifi_state_t shown_state = CALENDAR_WIFI_UNSET;
+
+  if (state == shown_state) {
+    return;
+  }
     if(Lvgl_lock(-1)) {
         calendar_ui_update_wifi(state);
         Lvgl_unlock();
+        Lvgl_RequestRender(5);
+        shown_state = state;
     }
 }
 
@@ -229,6 +233,7 @@ void BOOT_LoopTask(void *arg) {
                 if(Lvgl_lock(-1)) {
                     show_view(init_ui.screen_cont_4);
                     Lvgl_unlock();
+                    Lvgl_RequestRender(6);
                 }
                 xEventGroupSetBits(ConfigGroups,CFG_REQ_START);
             } else {
@@ -236,6 +241,7 @@ void BOOT_LoopTask(void *arg) {
                 if(Lvgl_lock(-1)) {
                     show_view(calendar_ui_root());
                     Lvgl_unlock();
+                    Lvgl_RequestRender(7);
                 }
                 xEventGroupSetBits(ConfigGroups,CFG_REQ_STOP);
             }
@@ -253,12 +259,14 @@ void KEY_LoopTask(void *arg) {
                 if(Lvgl_lock(-1)) {
                     show_view(init_ui.screen_cont_3);
                     Lvgl_unlock();
+                    Lvgl_RequestRender(8);
                 }
             } else {
                 is_cont3en = 0;
                 if(Lvgl_lock(-1)) {
                     show_view(calendar_ui_root());
                     Lvgl_unlock();
+                    Lvgl_RequestRender(9);
                 }
             }
         }
@@ -266,6 +274,23 @@ void KEY_LoopTask(void *arg) {
 }
 
 static void cfg_set_labels(const char *state, const char *ap_hint) {
+  static char shown_state[80] = "";
+  static char shown_ap_hint[120] = "";
+  bool changed = false;
+
+  if (state && strcmp(state, shown_state) != 0) {
+    strncpy(shown_state, state, sizeof(shown_state) - 1);
+    shown_state[sizeof(shown_state) - 1] = '\0';
+    changed = true;
+  }
+  if (ap_hint && strcmp(ap_hint, shown_ap_hint) != 0) {
+    strncpy(shown_ap_hint, ap_hint, sizeof(shown_ap_hint) - 1);
+    shown_ap_hint[sizeof(shown_ap_hint) - 1] = '\0';
+    changed = true;
+  }
+  if (!changed) {
+    return;
+  }
     if(Lvgl_lock(-1)) {
         if(state) {
             lv_label_set_text(init_ui.screen_label_cfg_state, state);
@@ -274,6 +299,7 @@ static void cfg_set_labels(const char *state, const char *ap_hint) {
             lv_label_set_text(init_ui.screen_label_cfg_ap, ap_hint);
         }
         Lvgl_unlock();
+        Lvgl_RequestRender(10);
     }
     ESP_LOGI("cfg", "%s", state ? state : "");
 }

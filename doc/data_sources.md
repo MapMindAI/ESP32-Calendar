@@ -134,8 +134,7 @@ measurement, but is published as invalid; the UI displays `--.-°C` and
 `--% RH` rather than presenting a stale or zero value as current.
 
 The environment row is redrawn when validity changes, temperature changes by
-at least 0.2 °C, humidity changes by at least 1 %RH, or ten minutes have
-passed without an environment redraw.
+at least 0.2 °C, or humidity changes by at least 1 %RH.
 
 ## Battery percentage
 
@@ -147,10 +146,10 @@ below to 0%, 4.12 V or above to 100%, and interpolates linearly between those vo
 ## Rendering implication
 
 The panel uses full refresh: every LVGL invalidation converts and transfers the
-entire 400 × 300 frame. `RENDER_FPS` in `main/user_config.h` caps the active
-LVGL render cadence; it does not cause periodic panel
-transfers while the UI is idle. The date/time and sensor cadences above avoid
-unnecessary invalidations.
+entire 400 × 300 frame. The LVGL task refreshes only after an application data
+change or button-driven view switch requests it; it does not poll the panel
+while the UI is idle. The date/time and sensor cadences above avoid unnecessary
+invalidations.
 
 `CONFIG_LV_USE_PERF_MONITOR=y` also enables LVGL's own bottom-right overlay, which reports LVGL's
 FPS and CPU usage. No application-side performance counters are used.
