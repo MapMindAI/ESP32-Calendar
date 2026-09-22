@@ -1,7 +1,7 @@
 #include "tarot_page.h"
 
-#define TAROT_MARGIN 4
-#define TAROT_GAP 4
+#define TAROT_MARGIN 2
+#define TAROT_GAP 2
 #define TAROT_IMG_Y 14
 #define TAROT_LABEL_Y (TAROT_IMG_Y + TAROT_CARD_HEIGHT + 4)
 #define TAROT_LABEL_HEIGHT 46
