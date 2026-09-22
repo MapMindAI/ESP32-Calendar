@@ -11,19 +11,16 @@
 
 DisplayPort RlcdPort(12,11,5,40,41,400,300);
 
-static void Lvgl_FlushCallback(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
-{
-  	uint16_t *buffer = (uint16_t *)color_map;
-	for(int y = area->y1; y <= area->y2; y++)
-  	{
-		for(int x = area->x1; x <= area->x2; x++)
-  	 	{
-  	 	   	uint8_t color = (*buffer < 0x7fff) ? ColorBlack : ColorWhite;
-  	 	   	RlcdPort.RLCD_SetPixel(x, y, color);
-  	 	   	buffer++;
-  	 	}
+static void Lvgl_FlushCallback(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map) {
+  uint16_t *buffer = (uint16_t *)color_map;
+	for(int y = area->y1; y <= area->y2; y++) {
+		for(int x = area->x1; x <= area->x2; x++) {
+      uint8_t color = (*buffer < 0x7fff) ? ColorBlack : ColorWhite;
+      RlcdPort.RLCD_SetPixel(x, y, color);
+      buffer++;
   	}
-  	RlcdPort.RLCD_Display();
+  }
+  RlcdPort.RLCD_Display();
 	lv_disp_flush_ready(drv);
 }
 

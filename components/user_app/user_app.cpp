@@ -22,9 +22,10 @@ I2cMasterBus I2cbus(14,13,0);
 EventGroupHandle_t ConfigGroups;
 
 /* ConfigGroups bits */
-#define CFG_REQ_START 0x01
-#define CFG_REQ_STOP  0x02
-#define CFG_SYNC_NOW  0x04  /* cut Time_SyncTask's wait short and open a window now */
+#define CFG_REQ_START  0x01  /* Wi-Fi setup view opened */
+#define CFG_REQ_STOP   0x02  /* Wi-Fi setup view closed */
+#define CFG_REQ_ENABLE 0x04  /* start the setup hotspot and captive portal */
+#define CFG_SYNC_NOW   0x08  /* cut Time_SyncTask's wait short and open a window now */
 
 /* Wi-Fi is by far the largest draw on this board and the PCF85063 holds the
    clock to a few seconds a day, so the radio is down except inside a sync
@@ -232,8 +233,7 @@ void Time_SyncTask(void *arg) {
 static void show_view(lv_obj_t *view)
 {
     lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_3, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(init_ui.screen_cont_4, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(init_ui.screen_cont_wifi_setup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(view, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -244,7 +244,7 @@ void BOOT_LoopTask(void *arg) {
             if(0 == is_CfgViewOn) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
-                    show_view(init_ui.screen_cont_4);
+                    show_view(init_ui.screen_cont_wifi_setup);
                     Lvgl_unlock();
                     Lvgl_RequestRender(6);
                 }
@@ -262,25 +262,52 @@ void BOOT_LoopTask(void *arg) {
     }
 }
 
+/* KEY gestures are dispatched by the visible page. Keep these entry points
+   separate so each page can gain its own interaction without changing button
+   decoding or view navigation. */
+static void calendar_key_single_click(void)
+{
+}
+
+static void calendar_key_double_click(void)
+{
+}
+
+static void calendar_key_long_press(void)
+{
+}
+
+static void wifi_setup_key_single_click(void)
+{
+}
+
+static void wifi_setup_key_double_click(void)
+{
+}
+
+static void wifi_setup_key_long_press(void)
+{
+    xEventGroupSetBits(ConfigGroups, CFG_REQ_ENABLE);
+}
+
 void KEY_LoopTask(void *arg) {
-    bool is_cont3en = 0;
     for(;;) {
         EventBits_t even = xEventGroupWaitBits(GP18ButtonGroups,(0x01 | 0x02 | 0x04),pdTRUE,pdFALSE,pdMS_TO_TICKS(2000));
-        if(even & 0x04) {
-            if(0 == is_cont3en) {
-                is_cont3en = 1;
-                if(Lvgl_lock(-1)) {
-                    show_view(init_ui.screen_cont_3);
-                    Lvgl_unlock();
-                    Lvgl_RequestRender(8);
-                }
-            } else {
-                is_cont3en = 0;
-                if(Lvgl_lock(-1)) {
-                    show_view(calendar_ui_root());
-                    Lvgl_unlock();
-                    Lvgl_RequestRender(9);
-                }
+        if(is_CfgViewOn) {
+            if(even & 0x01) {
+                wifi_setup_key_single_click();
+            } else if(even & 0x02) {
+                wifi_setup_key_double_click();
+            } else if(even & 0x04) {
+                wifi_setup_key_long_press();
+            }
+        } else {
+            if(even & 0x01) {
+                calendar_key_single_click();
+            } else if(even & 0x02) {
+                calendar_key_double_click();
+            } else if(even & 0x04) {
+                calendar_key_long_press();
             }
         }
     }
@@ -319,30 +346,45 @@ static void cfg_set_labels(const char *state, const char *ap_hint) {
 
 void Config_LoopTask(void *arg) {
     bool active = false;
+    bool view_open = false;
     for(;;) {
-        EventBits_t even = xEventGroupWaitBits(ConfigGroups,(CFG_REQ_START | CFG_REQ_STOP),pdTRUE,pdFALSE,pdMS_TO_TICKS(500));
+        EventBits_t even = xEventGroupWaitBits(ConfigGroups,
+            (CFG_REQ_START | CFG_REQ_STOP | CFG_REQ_ENABLE),pdTRUE,pdFALSE,pdMS_TO_TICKS(500));
         if(even & CFG_REQ_START) {
-            if(!active) {
-                active = true;
-                /* The label goes up before the mutex: a sync window in progress
-                   holds the radio for up to half a minute. */
-                cfg_set_labels("Starting hotspot...", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
-                xSemaphoreTake(WifiMutex,portMAX_DELAY);
-                espwifi_config_start();
-                cfg_set_labels("Hotspot ready\nJoin it, page pops up", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS "\nPortal: 192.168.4.1");
-            }
-        }
-        if(!active) {
-            continue;
+            view_open = true;
+            cfg_set_labels("Long-press KEY\nto enable hotspot", "Hotspot disabled\nLong-press BOOT to exit");
         }
         if(even & CFG_REQ_STOP) {
-            active = false;
-            espwifi_config_stop();
-            xSemaphoreGive(WifiMutex);
+            view_open = false;
+            bool was_active = active;
+            if(active) {
+                active = false;
+                espwifi_config_stop();
+                xSemaphoreGive(WifiMutex);
+            }
             cfg_set_labels("Long-press BOOT\nto configure", NULL);
             /* Credentials may have just been saved; take the time straight away
                rather than leaving the clock uncorrected until the daily window. */
-            xEventGroupSetBits(ConfigGroups,CFG_SYNC_NOW);
+            if(was_active) {
+                xEventGroupSetBits(ConfigGroups,CFG_SYNC_NOW);
+            }
+            continue;
+        }
+        if((even & CFG_REQ_ENABLE) && view_open && !active) {
+            active = true;
+            /* The label goes up before the mutex: a sync window in progress
+               holds the radio for up to half a minute. */
+            cfg_set_labels("Starting hotspot...", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
+            xSemaphoreTake(WifiMutex,portMAX_DELAY);
+            if(!is_CfgViewOn) {
+                active = false;
+                xSemaphoreGive(WifiMutex);
+                continue;
+            }
+            espwifi_config_start();
+            cfg_set_labels("Hotspot ready\nJoin it, page pops up", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS "\nPortal: 192.168.4.1");
+        }
+        if(!active) {
             continue;
         }
         EventBits_t wifi_even = xEventGroupGetBits(wifi_even_);
@@ -388,7 +430,8 @@ void UserApp_UiInit() {
 #if LVGL_DEBUG_LOG
     calendar_ui_update_uptime((uint32_t)(esp_timer_get_time() / (60LL * 1000000LL)));
 #endif
-    lv_label_set_text(init_ui.screen_label_cfg_state, "Long-press BOOT\nto configure");
+    lv_label_set_text(init_ui.screen_label_cfg_state, "Long-press KEY\nto enable hotspot");
+    lv_label_set_text(init_ui.screen_label_cfg_ap, "Hotspot disabled\nLong-press BOOT to exit");
 }
 
 void UserApp_TaskInit() {

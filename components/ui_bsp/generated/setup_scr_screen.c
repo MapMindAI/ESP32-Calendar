@@ -96,21 +96,6 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_pad_left(ui->screen_label_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_label_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_img_1
-    ui->screen_img_1 = lv_img_create(ui->screen_cont_2);
-    lv_obj_add_flag(ui->screen_img_1, LV_OBJ_FLAG_CLICKABLE);
-    lv_img_set_src(ui->screen_img_1, &_battery_alpha_30x30);
-    lv_img_set_pivot(ui->screen_img_1, 50,50);
-    lv_img_set_angle(ui->screen_img_1, 0);
-    lv_obj_set_pos(ui->screen_img_1, 29, 221);
-    lv_obj_set_size(ui->screen_img_1, 30, 30);
-
-    //Write style for screen_img_1, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_img_recolor_opa(ui->screen_img_1, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_img_opa(ui->screen_img_1, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_img_1, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_clip_corner(ui->screen_img_1, true, LV_PART_MAIN|LV_STATE_DEFAULT);
-
     //Write codes screen_label_6
     ui->screen_label_6 = lv_label_create(ui->screen_cont_2);
     lv_label_set_text(ui->screen_label_6, "No Card");
@@ -157,21 +142,6 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_pad_left(ui->screen_label_5, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_label_5, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_img_2
-    ui->screen_img_2 = lv_img_create(ui->screen_cont_2);
-    lv_obj_add_flag(ui->screen_img_2, LV_OBJ_FLAG_CLICKABLE);
-    lv_img_set_src(ui->screen_img_2, &_battery_alpha_30x30);
-    lv_img_set_pivot(ui->screen_img_2, 50,50);
-    lv_img_set_angle(ui->screen_img_2, 0);
-    lv_obj_set_pos(ui->screen_img_2, 29, 258);
-    lv_obj_set_size(ui->screen_img_2, 30, 30);
-
-    //Write style for screen_img_2, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_img_recolor_opa(ui->screen_img_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_img_opa(ui->screen_img_2, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_img_2, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_clip_corner(ui->screen_img_2, true, LV_PART_MAIN|LV_STATE_DEFAULT);
-
     //Write codes screen_label_7
     ui->screen_label_7 = lv_label_create(ui->screen_cont_2);
     lv_label_set_text(ui->screen_label_7, "100%");
@@ -217,36 +187,6 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_pad_bottom(ui->screen_label_8, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_pad_left(ui->screen_label_8, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_label_8, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-
-    //Write codes screen_img_3
-    ui->screen_img_3 = lv_img_create(ui->screen_cont_2);
-    lv_obj_add_flag(ui->screen_img_3, LV_OBJ_FLAG_CLICKABLE);
-    lv_img_set_src(ui->screen_img_3, &_shidu_alpha_30x30);
-    lv_img_set_pivot(ui->screen_img_3, 50,50);
-    lv_img_set_angle(ui->screen_img_3, 0);
-    lv_obj_set_pos(ui->screen_img_3, 235, 10);
-    lv_obj_set_size(ui->screen_img_3, 30, 30);
-
-    //Write style for screen_img_3, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_img_recolor_opa(ui->screen_img_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_img_opa(ui->screen_img_3, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_img_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_clip_corner(ui->screen_img_3, true, LV_PART_MAIN|LV_STATE_DEFAULT);
-
-    //Write codes screen_img_4
-    ui->screen_img_4 = lv_img_create(ui->screen_cont_2);
-    lv_obj_add_flag(ui->screen_img_4, LV_OBJ_FLAG_CLICKABLE);
-    lv_img_set_src(ui->screen_img_4, &_wendu_alpha_30x30);
-    lv_img_set_pivot(ui->screen_img_4, 50,50);
-    lv_img_set_angle(ui->screen_img_4, 0);
-    lv_obj_set_pos(ui->screen_img_4, 235, 48);
-    lv_obj_set_size(ui->screen_img_4, 30, 30);
-
-    //Write style for screen_img_4, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_img_recolor_opa(ui->screen_img_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_img_opa(ui->screen_img_4, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_img_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_clip_corner(ui->screen_img_4, true, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_label_9
     ui->screen_label_9 = lv_label_create(ui->screen_cont_2);
@@ -386,61 +326,27 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_pad_left(ui->screen_label_14, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui->screen_label_14, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
-    //Write codes screen_cont_3
-    ui->screen_cont_3 = lv_obj_create(ui->screen);
-    lv_obj_set_pos(ui->screen_cont_3, 0, 0);
-    lv_obj_set_size(ui->screen_cont_3, 400, 300);
-    lv_obj_set_scrollbar_mode(ui->screen_cont_3, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_flag(ui->screen_cont_3, LV_OBJ_FLAG_HIDDEN);
+    //Write codes screen_cont_wifi_setup
+    ui->screen_cont_wifi_setup = lv_obj_create(ui->screen);
+    lv_obj_set_pos(ui->screen_cont_wifi_setup, 0, 0);
+    lv_obj_set_size(ui->screen_cont_wifi_setup, 400, 300);
+    lv_obj_set_scrollbar_mode(ui->screen_cont_wifi_setup, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(ui->screen_cont_wifi_setup, LV_OBJ_FLAG_HIDDEN);
 
-    //Write style for screen_cont_3, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_border_width(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui->screen_cont_3, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui->screen_cont_3, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui->screen_cont_3, LV_GRAD_DIR_NONE, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_cont_3, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-
-    //Write codes screen_img_5
-    ui->screen_img_5 = lv_img_create(ui->screen_cont_3);
-    lv_obj_add_flag(ui->screen_img_5, LV_OBJ_FLAG_CLICKABLE);
-    lv_img_set_src(ui->screen_img_5, &_ein_alpha_400x300);
-    lv_img_set_pivot(ui->screen_img_5, 50,50);
-    lv_img_set_angle(ui->screen_img_5, 0);
-    lv_obj_set_pos(ui->screen_img_5, 0, 0);
-    lv_obj_set_size(ui->screen_img_5, 400, 300);
-
-    //Write style for screen_img_5, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_img_recolor_opa(ui->screen_img_5, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_img_opa(ui->screen_img_5, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_img_5, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_clip_corner(ui->screen_img_5, true, LV_PART_MAIN|LV_STATE_DEFAULT);
-
-    //Write codes screen_cont_4
-    ui->screen_cont_4 = lv_obj_create(ui->screen);
-    lv_obj_set_pos(ui->screen_cont_4, 0, 0);
-    lv_obj_set_size(ui->screen_cont_4, 400, 300);
-    lv_obj_set_scrollbar_mode(ui->screen_cont_4, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_add_flag(ui->screen_cont_4, LV_OBJ_FLAG_HIDDEN);
-
-    //Write style for screen_cont_4, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
-    lv_obj_set_style_border_width(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui->screen_cont_4, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui->screen_cont_4, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(ui->screen_cont_4, LV_GRAD_DIR_NONE, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_left(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_width(ui->screen_cont_4, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    //Write style for screen_cont_wifi_setup, Part: LV_PART_MAIN, State: LV_STATE_DEFAULT.
+    lv_obj_set_style_border_width(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui->screen_cont_wifi_setup, 255, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui->screen_cont_wifi_setup, lv_color_hex(0xffffff), LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(ui->screen_cont_wifi_setup, LV_GRAD_DIR_NONE, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_top(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_right(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui->screen_cont_wifi_setup, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_label_cfg_title
-    ui->screen_label_cfg_title = lv_label_create(ui->screen_cont_4);
+    ui->screen_label_cfg_title = lv_label_create(ui->screen_cont_wifi_setup);
     lv_label_set_text(ui->screen_label_cfg_title, "Wi-Fi Setup");
     lv_label_set_long_mode(ui->screen_label_cfg_title, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_label_cfg_title, 0, 6);
@@ -463,7 +369,7 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_shadow_width(ui->screen_label_cfg_title, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_label_cfg_state
-    ui->screen_label_cfg_state = lv_label_create(ui->screen_cont_4);
+    ui->screen_label_cfg_state = lv_label_create(ui->screen_cont_wifi_setup);
     lv_label_set_text(ui->screen_label_cfg_state, "Long-press BOOT\nto configure");
     lv_label_set_long_mode(ui->screen_label_cfg_state, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_label_cfg_state, 10, 44);
@@ -486,7 +392,7 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_shadow_width(ui->screen_label_cfg_state, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_label_cfg_ap
-    ui->screen_label_cfg_ap = lv_label_create(ui->screen_cont_4);
+    ui->screen_label_cfg_ap = lv_label_create(ui->screen_cont_wifi_setup);
     lv_label_set_text(ui->screen_label_cfg_ap, "Hotspot: ESP32-Calendar");
     lv_label_set_long_mode(ui->screen_label_cfg_ap, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_label_cfg_ap, 10, 152);
@@ -509,7 +415,7 @@ void setup_scr_screen(lv_ui *ui)
     lv_obj_set_style_shadow_width(ui->screen_label_cfg_ap, 0, LV_PART_MAIN|LV_STATE_DEFAULT);
 
     //Write codes screen_label_cfg_hint
-    ui->screen_label_cfg_hint = lv_label_create(ui->screen_cont_4);
+    ui->screen_label_cfg_hint = lv_label_create(ui->screen_cont_wifi_setup);
     lv_label_set_text(ui->screen_label_cfg_hint, "Long-press BOOT to exit");
     lv_label_set_long_mode(ui->screen_label_cfg_hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_pos(ui->screen_label_cfg_hint, 10, 244);

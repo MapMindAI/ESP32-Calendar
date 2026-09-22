@@ -14,11 +14,10 @@ icon under the battery percentage reports how the last window went (`✓` synced
 `...` window open, `!` no answer, `?` not configured). Wi-Fi itself is configured over a
 captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below).
 
-The tree still starts from Waveshare's factory self-test demo
-and two of its screens survive behind long-presses; see **[AGENTS.md](AGENTS.md)** §10 for what is
-still residue.
+The tree still starts from Waveshare's factory self-test demo; see **[AGENTS.md](AGENTS.md)** §10
+for what is still residue.
 
-* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (dashboard hand-written; the remaining screens generated with NXP GUI Guider)
+* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (dashboard hand-written; Wi-Fi setup generated with NXP GUI Guider)
 * Flash layout: single 8 MB factory app, no OTA (`partitions.csv`)
 * Timezone and NTP server: `idf.py menuconfig` → **ESP32 Calendar** (`CONFIG_CALENDAR_TIMEZONE`, default `CST-8`)
 * Time of the daily sync window: `TIME_SYNC_HOUR` / `TIME_SYNC_MINUTE` in `components/user_app/user_app.cpp`
@@ -115,8 +114,8 @@ rules for generated and vendored code.
 
 ### This project
 
-* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the three views and every
-  widget on them, the refresh policy, button gestures, fonts and image assets
+* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the two views and every
+  widget on them, the refresh policy, button gestures and fonts
 * **[doc/data_sources.md](doc/data_sources.md)** — RTC/SNTP time synchronization, SHTC3 readings,
   validation, smoothing and dashboard update cadence
 * **[doc/almanac.md](doc/almanac.md)** — how the 2026–2030 宜忌 / 十二建除 / 十二值神 tables and their

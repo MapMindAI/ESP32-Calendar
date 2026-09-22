@@ -9,8 +9,8 @@ Code map:
 |---|---|
 | Dashboard widget tree, positions, styles | `components/ui_bsp/custom/calendar_ui.c` |
 | Date maths and the UI data model | `components/ui_bsp/custom/calendar_calc.c`, `calendar_calc.h` |
-| Dashboard fonts | `components/ui_bsp/custom/fonts/`, declared in `calendar_fonts.h` |
-| Image and Wi-Fi setup views | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
+| UI fonts | `components/ui_bsp/fonts/`, declared in `calendar_fonts.h` or `gui_guider.h` |
+| Wi-Fi setup view | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
 | Widget handles (`lv_ui` struct) | `components/ui_bsp/generated/gui_guider.h` |
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
 | System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
@@ -39,24 +39,22 @@ For source, validation and synchronization details, see
 
 ## 2. Screen model
 
-There is exactly **one** LVGL screen (`ui->screen`, white background). Three full-size containers
+There is exactly **one** LVGL screen (`ui->screen`, white background). Two full-size containers
 sit on it, and navigation is done by toggling `LV_OBJ_FLAG_HIDDEN` on them — `lv_scr_load()` and
 GUI Guider's screen-animation helpers are not used.
 
 | Container | View | Initial state |
 |---|---|---|
 | `calendar_ui_root()` | Status dashboard (the home view) | visible |
-| `screen_cont_3` | Full-screen image | hidden |
-| `screen_cont_4` | Wi-Fi setup / configuration | hidden |
+| `screen_cont_wifi_setup` | Wi-Fi setup / configuration | hidden |
 
 The dashboard is **not** GUI Guider output. `UserApp_UiInit()` calls `setup_ui()`, deletes the
-generated `screen_cont_2` outright and builds `calendar_ui` in its place on the same screen. That
-keeps `setup_scr_screen.c` regenerable — the image and Wi-Fi setup views still come from it — while
-the dashboard is laid out in hand-written code where 42 calendar cells are cheap to express.
+generated `screen_cont_2`, then builds `calendar_ui` on the same screen. The obsolete image
+container and its bitmap asset have been removed from the generated source. The dashboard is laid
+out in hand-written code where 42 calendar cells are cheap to express.
 
-The invariant is *exactly one container visible at a time*. Every switch must both clear the flag on
-the incoming container and set it on both others; the toggle helpers in `BOOT_LoopTask` and
-`KEY_LoopTask` do this explicitly. Adding a fourth view means extending each of those lists.
+The invariant is *exactly one container visible at a time*. Every switch clears the incoming
+container's hidden flag and hides the other container. Adding a view means extending `show_view()`.
 
 ## 3. The views
 
@@ -146,7 +144,7 @@ A zero is never displayed for a missing reading — `0°C` reads as real data.
 
 #### Wi-Fi icon
 
-The radio is down except inside a sync window (§3.5), so the icon reports the
+The radio is down except inside a sync window (§3.4), so the icon reports the
 **last window's outcome** rather than a live link state. It is one glyph plus one
 ASCII marker, because there is no colour on this panel and no room beside the
 battery for a second icon:
@@ -183,7 +181,7 @@ Time_SyncTask ──▶ Wi-Fi up ──▶ SNTP ──▶ Wi-Fi down ──▶ w
 * `time_manager` (`components/app_bsp/time_manager.cpp`) sets `TZ` from `CONFIG_CALENDAR_TIMEZONE`,
   seeds the system clock from the PCF85063 at boot, and writes the RTC back whenever
   `time_manager_sync_now()` lands an answer from `CONFIG_CALENDAR_NTP_SERVER`. `Time_SyncTask` is
-  what calls it, inside a sync window (§3.5). With no network the clock still runs from the RTC, and
+  what calls it, inside a sync window (§3.4). With no network the clock still runs from the RTC, and
   the display never depends on Wi-Fi being up.
 * `sensor_manager` (`components/app_bsp/sensor_manager.cpp`) is the only thing that knows the part is
   an SHTC3. It range-checks every reading (−40…85 °C, 0…100 %RH) and smooths it (α = 0.2) so a
@@ -214,15 +212,10 @@ Time_SyncTask ──▶ Wi-Fi up ──▶ SNTP ──▶ Wi-Fi down ──▶ w
 the system layer at the bottom right and reports its FPS and CPU usage; the application does not
 collect or format separate render statistics.
 
-### 3.2 Image view — `screen_cont_3`
-
-A single full-bleed 400 × 300 image (`_ein_alpha_400x300`), nothing else. Reached by a long press on
-**KEY**, dismissed by another long press.
-
-### 3.3 Wi-Fi setup view — `screen_cont_4`
+### 3.2 Wi-Fi setup view — `screen_cont_wifi_setup`
 
 The network configuration view. It is reached by a long press on **BOOT** and shows what the
-device's own configuration hotspot is doing; all text entry happens on the phone (§3.4).
+device's own configuration hotspot is doing; all text entry happens on the phone (§3.3).
 
 | Widget | Position | Content |
 |---|---|---|
@@ -236,7 +229,8 @@ device's own configuration hotspot is doing; all text entry happens on the phone
 | State | `screen_label_cfg_state` | `screen_label_cfg_ap` |
 |---|---|---|
 | view closed / idle | `Long-press BOOT\nto configure` | unchanged |
-| view opened | `Starting hotspot...` | `Hotspot: ESP32-Calendar\nPassword: calendar` |
+| view opened / host disabled | `Long-press KEY\nto enable hotspot` | `Hotspot disabled\nLong-press BOOT to exit` |
+| KEY long press | `Starting hotspot...` | `Hotspot: ESP32-Calendar\nPassword: calendar` |
 | hotspot + portal up | `Hotspot ready\nJoin it, page pops up` | `Hotspot: ESP32-Calendar\nPassword: calendar\nPortal: 192.168.4.1` |
 | phone joined the hotspot | `Phone connected\nOpen the setup page` | unchanged |
 | credentials submitted | `Connecting to\n<ssid>...` | `Portal: 192.168.4.1` |
@@ -247,9 +241,10 @@ These are the only app labels written **with** the LVGL lock. The state text is 
 only CJK glyphs present in `lv_font_MISANSMEDIUM_25` are those the audio strings used, so a Chinese
 line here would render blank until the font is regenerated in GUI Guider (see §5).
 
-### 3.4 Wi-Fi setup flow
+### 3.3 Wi-Fi setup flow
 
-Nothing runs until the user opens the view. `Config_LoopTask` then:
+Opening the view does not bring up Wi-Fi. With the setup view visible, a long press on **KEY**
+starts the configuration host; `Config_LoopTask` then:
 
 1. `espwifi_config_start()` — NVS, netifs and the Wi-Fi driver (re-)initialise, the device goes
    `WIFI_MODE_APSTA`, starts a WPA2-PSK softAP named `ESP32-Calendar` (passphrase `calendar`, both
@@ -266,12 +261,13 @@ Nothing runs until the user opens the view. `Config_LoopTask` then:
    for `IP_EVENT_STA_GOT_IP`. On success the credentials are written to the NVS namespace
    `wificfg` (keys `ssid`, `pass`) and `/status` shows the IP; on failure the page returns to the
    scan list after 3 s and the AP stays up for a retry.
-6. Long-pressing BOOT again closes the view. `espwifi_config_stop()` stops the DNS/HTTP servers and
+6. Long-pressing BOOT again closes the view. If the host is running, `espwifi_config_stop()` stops the DNS/HTTP servers and
    tears Wi-Fi **all the way down** — the radio is not kept up after setup — then `Config_LoopTask`
-   sets `CFG_SYNC_NOW`, which makes `Time_SyncTask` open a sync window straight away with the new
-   credentials. From then on the credentials are only used inside those windows (§3.5).
+   sets `CFG_SYNC_NOW` when a running host closes, which makes `Time_SyncTask` open a sync window
+   straight away with the new credentials. From then on the credentials are only used inside those
+   windows (§3.4).
 
-### 3.5 Daily Wi-Fi sync window
+### 3.4 Daily Wi-Fi sync window
 
 Wi-Fi is the largest current draw on the board, so the radio is **down except inside a sync window**.
 `Time_SyncTask` owns the windows and is the only thing that brings the station up; `Config_LoopTask`
@@ -285,7 +281,7 @@ ends of it, which is the only feedback the dashboard gives about the radio.
 |---|---|
 | boot | as soon as `Time_SyncTask` starts |
 | daily | `TIME_SYNC_HOUR`:`TIME_SYNC_MINUTE` local time — 03:30 by default |
-| after setup | the setup view closing sets `CFG_SYNC_NOW` |
+| after setup | closing a running setup host sets `CFG_SYNC_NOW` |
 | retry | `TIME_SYNC_RETRY_MINUTES` (30) after a window that got no answer, or one that ran while the clock was still invalid |
 
 All four constants sit at the top of `user_app.cpp`. Moving the daily window means editing
@@ -315,22 +311,22 @@ one bit per wake, in the priority order below.
 
 | Button | Gesture | Action |
 |---|---|---|
-| BOOT | long press | Toggle the **Wi-Fi setup view** (`cont_4`) on/off; off returns to the dashboard and stops the hotspot/portal |
-| KEY | long press | Toggle the **image view** (`cont_3`) on/off; off returns to the dashboard |
+| BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal if it is running |
 | BOOT | single / double click | unused |
-| KEY | single / double click | unused |
+| KEY | long press | On the Wi-Fi setup view, start the configuration hotspot and captive portal; otherwise no action yet |
+| KEY | single / double click | Dispatch to the current page's placeholder handler; no action yet |
 
 Notes on the semantics as implemented:
 
 * Long press fires on **press start**, not release — the view flips while the button is still down.
-* The two view toggles are independent booleans (`is_CfgViewOn`, `is_cont3en`). Turning one off always
-  returns to the dashboard, so entering the image view from the setup view and then leaving lands on
-  the dashboard rather than back where you came from.
-* The setup view owns the radio while it is open: opening it takes `WifiMutex` and starts the hotspot
-  and captive portal, closing it stops them, tears Wi-Fi down and releases the mutex. If a sync
-  window (§3.5) is in progress the view sits on `Starting hotspot...` until it finishes — at most
-  about 35 s. The button tasks do the visibility flip and signal `ConfigGroups`; `Config_LoopTask`
-  does the Wi-Fi work.
+* KEY dispatches to `calendar_key_<gesture>()` on the dashboard and
+  `wifi_setup_key_<gesture>()` on the setup page. The setup page's long press requests the hotspot;
+  the other five handlers are intentionally empty until page-specific interactions are defined.
+* The setup view owns the radio only after its KEY long press: that request takes `WifiMutex` and
+  starts the hotspot and captive portal. Closing the view stops them if running, tears Wi-Fi down
+  and releases the mutex. If a sync window (§3.4) is in progress, the page sits on `Starting
+  hotspot...` until it finishes — at most about 35 s. The button tasks do the visibility flip and
+  signal `ConfigGroups`; `Config_LoopTask` does the Wi-Fi work.
 * The audio recorder/player demo (BOOT single = play recording, BOOT double = record, KEY single/
   double = `canon.pcm`) was removed together with the audio view and `Codec_LoopTask`.
 
@@ -341,17 +337,21 @@ Notes on the semantics as implemented:
                               │
                               ▼
                       ┌───────────────┐
-                      │   dashboard   │◀─────────────┐
-                      │  calendar_ui  │              │
-                      └───────┬───────┘              │
-                   BOOT long  │  KEY long            │
-               ┌──────────────┴──────────────┐       │
-               ▼                             ▼       │
-       ┌───────────────┐             ┌───────────────┤
-       │  Wi-Fi setup  │             │  image view   │
-       │    cont_4     │             │    cont_3     │
-       └───────┬───────┘             └───────┬───────┘
-               └── BOOT long ────────────────┴─ KEY long ─┘
+                      │   dashboard   │
+                      │  calendar_ui  │
+                      └───────┬───────┘
+                          BOOT long
+                              ▼
+                      ┌───────────────┐
+                      │  Wi-Fi setup  │
+                      │ wifi setup    │
+                      └───────┬───────┘
+                          BOOT long
+                              ▼
+                      ┌───────────────┐
+                      │   dashboard   │
+                      │  calendar_ui  │
+                      └───────────────┘
 ```
 
 ## 5. Typography and assets
@@ -375,7 +375,7 @@ different places.
 | `lv_font_MISANSMEDIUM_100` | 100 px | 4 | — (unused since the dashboard was replaced) |
 
 The `lv_font_calendar_*` faces are DejaVu Sans Condensed Bold subsets generated with `lv_font_conv`
-and checked in under `components/ui_bsp/custom/fonts/`. They are **1 bpp on purpose**: the flush
+and checked in under `components/ui_bsp/fonts/`. They are **1 bpp on purpose**: the flush
 callback thresholds every pixel, so a 4 bpp face's anti-aliased edges are discarded at runtime and
 the extra bitmap data is pure flash cost. Condensed, because every size here is width-constrained.
 
@@ -405,10 +405,8 @@ that view is English-only; the Chinese half of its strings lives in the phone-fa
 The 20 px and 100 px MiSans faces have no user left and are candidates for removal from the GUI
 Guider project.
 
-Images are LVGL C arrays under `components/ui_bsp/generated/images/`. Only `_ein_alpha_400x300` (the
-image view) is still referenced; the two 30 × 30 sensor icons, the battery icon and `_3_alpha_200x200`
-went with the old dashboard. The new dashboard is text, 1 px rules and the single `LV_SYMBOL_WIFI`
-glyph in the bottom bar — no bitmap icons, no gauges, no weather art.
+All generated bitmap assets have been removed. The dashboard is text, 1 px rules and the single
+`LV_SYMBOL_WIFI` glyph in the bottom bar — no bitmap icons, gauges or weather art.
 
 ## 6. Adding to the UI
 
@@ -418,7 +416,7 @@ Which half of the UI you are in decides the workflow:
   the top of that file; every widget is built by `calendar_ui_create()` and written by one of the
   `calendar_ui_update_*` / `calendar_ui_refresh_all` entry points. Nothing else may touch those
   widgets.
-* **Image or Wi-Fi setup view** — lay the widget out in the GUI Guider project and regenerate
+* **Wi-Fi setup view** — lay the widget out in the GUI Guider project and regenerate
   `components/ui_bsp/generated/`. Hand-edits there are lost on the next regeneration.
 
 Then, in both cases:
@@ -438,9 +436,8 @@ Then, in both cases:
 
 Inherited from the factory demo, or left by the dashboard rewrite; flag rather than preserve:
 
-* The 20 px and 100 px MiSans faces and every image except `_ein_alpha_400x300` are still compiled in
-  with no user. They will disappear on the next GUI Guider regeneration only if they are removed from
-  the project first.
+* The 20 px and 100 px MiSans faces are still compiled with no user. They will disappear on the next
+  GUI Guider regeneration only if they are removed from the project first.
 * `screen_cont_2` is still built by `setup_scr_screen.c` and then deleted at init — a few hundred
   bytes of widget churn at boot. Removing the container from the GUI Guider project is the real fix.
 * The setup view is English-only, because the generated MiSans subsets do not cover the Chinese it
