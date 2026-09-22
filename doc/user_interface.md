@@ -317,7 +317,7 @@ one bit per wake, in the priority order below.
 | BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal if it is running |
 | BOOT | single / double click | unused |
 | KEY | single click | On the dashboard, move the calendar view one day forward and re-render the grid and the 宜忌 section; the top-left date/time block keeps showing today |
-| KEY | double click | On the dashboard, move the calendar view one month forward (same day of month, clamped), clearing any single-day offset |
+| KEY | double click | On the dashboard, move the calendar view to the 1st of the next month, clearing any single-day offset |
 | KEY | long press | On the dashboard, jump the calendar view back to today; on the Wi-Fi setup view, start the configuration hotspot and captive portal |
 
 Notes on the semantics as implemented:
@@ -325,8 +325,9 @@ Notes on the semantics as implemented:
 * Long press fires on **press start**, not release — the view flips while the button is still down.
 * KEY dispatches to `calendar_key_<gesture>()` on the dashboard and
   `wifi_setup_key_<gesture>()` on the setup page. The dashboard's single click steps a day
-  offset (`CalendarView_AdvanceDay`), its double click steps a month offset and clears the day
-  offset (`CalendarView_AdvanceMonth`), and its long press clears both (`CalendarView_ResetDay`);
+  offset (`CalendarView_AdvanceDay`), its double click steps a month offset and anchors the view
+  on the 1st of that month, clearing the day offset (`CalendarView_AdvanceMonth`), and its long
+  press clears both (`CalendarView_ResetDay`);
   all three re-render through `CalendarView_Render()` in `driver_update.cpp`, which logs the
   resulting view date (`cal_view` tag). While an offset is
   nonzero the month grid, the highlighted cell, 干支 and the 宜忌 lines follow the selected day,

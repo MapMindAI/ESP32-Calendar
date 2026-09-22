@@ -25,15 +25,18 @@
 /* Browsing offsets the KEY button has walked the calendar view away from
    today: whole months first, then single days on top. Only ever incremented
    and reset, so the month math never goes below today's month. Written from
-   KEY_LoopTask, read from Calendar_LoopTask; plain volatile ints are atomic
-   enough for counters. */
+   KEY_LoopTask, read from Calendar_LoopTask; plain volatile ints and the flag
+   are atomic enough for counters. */
 static volatile int calendar_view_offset_months = 0;
 static volatile int calendar_view_offset_days = 0;
+/* Set by a month step: anchor the view on the 1st instead of today's day. */
+static volatile bool calendar_view_anchor_first = false;
 
 static void calendar_view_render(void);
 
-/* Today + the browsing offsets, with the day clamped into the target month
-   (today is the 31st and the target month has 30 days -> the 30th). */
+/* Today + the browsing offsets, anchored on the 1st after a month step and
+   otherwise on today, with the day clamped into the target month (today is
+   the 31st and the target month has 30 days -> the 30th). */
 static bool calendar_view_date(struct tm* view) {
   struct tm local;
   int month_index;
@@ -52,6 +55,7 @@ static bool calendar_view_date(struct tm* view) {
   *view = local;
   view->tm_year = year - 1900;
   view->tm_mon = month - 1;
+  view->tm_mday = calendar_view_anchor_first ? 1 : view->tm_mday;
   if (view->tm_mday > days_in_month) {
     view->tm_mday = days_in_month;
   }
@@ -62,14 +66,17 @@ static bool calendar_view_date(struct tm* view) {
 
 void CalendarView_AdvanceDay(void) { calendar_view_offset_days = calendar_view_offset_days + 1; }
 
+/* Next month, always on its 1st. */
 void CalendarView_AdvanceMonth(void) {
   calendar_view_offset_months = calendar_view_offset_months + 1;
   calendar_view_offset_days = 0;
+  calendar_view_anchor_first = true;
 }
 
 void CalendarView_ResetDay(void) {
   calendar_view_offset_months = 0;
   calendar_view_offset_days = 0;
+  calendar_view_anchor_first = false;
 }
 
 /* Button-triggered re-render: log the resulting view date, then repaint. */
