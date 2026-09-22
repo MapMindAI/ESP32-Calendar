@@ -1,31 +1,31 @@
-#include <stdio.h>
-#include <math.h>
+#include "user_app.h"
 #include <assert.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <esp_log.h>
 #include <esp_timer.h>
-#include "button_bsp.h"
-#include "user_app.h"
-#include "lvgl_bsp.h"
-#include "gui_guider.h"
-#include "calendar_ui.h"
-#include "calendar_calc.h"
-#include "i2c_bsp.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <math.h>
+#include <stdio.h>
 #include "adc_bsp.h"
-#include "time_manager.h"
-#include "sensor_manager.h"
+#include "button_bsp.h"
+#include "calendar_calc.h"
+#include "calendar_ui.h"
 #include "esp_wifi_bsp.h"
+#include "i2c_bsp.h"
+#include "lvgl_bsp.h"
+#include "sensor_manager.h"
+#include "time_manager.h"
+#include "wifi_setup_page.h"
 
-static lv_ui init_ui;
+static wifi_setup_page_t init_ui;
 I2cMasterBus I2cbus(14,13,0);
 EventGroupHandle_t ConfigGroups;
 
 /* ConfigGroups bits */
-#define CFG_REQ_START  0x01  /* Wi-Fi setup view opened */
-#define CFG_REQ_STOP   0x02  /* Wi-Fi setup view closed */
-#define CFG_REQ_ENABLE 0x04  /* start the setup hotspot and captive portal */
-#define CFG_SYNC_NOW   0x08  /* cut Time_SyncTask's wait short and open a window now */
+#define CFG_REQ_START 0x01  /* Wi-Fi setup view opened */
+#define CFG_REQ_STOP 0x02   /* Wi-Fi setup view closed */
+#define CFG_REQ_ENABLE 0x04 /* start the setup hotspot and captive portal */
+#define CFG_SYNC_NOW 0x08   /* cut Time_SyncTask's wait short and open a window now */
 
 /* Wi-Fi is by far the largest draw on this board and the PCF85063 holds the
    clock to a few seconds a day, so the radio is down except inside a sync
@@ -244,9 +244,9 @@ void BOOT_LoopTask(void *arg) {
             if(0 == is_CfgViewOn) {
                 is_CfgViewOn = 1;
                 if(Lvgl_lock(-1)) {
-                    show_view(init_ui.screen_cont_wifi_setup);
-                    Lvgl_unlock();
-                    Lvgl_RequestRender(6);
+                  show_view(init_ui.screen_cont_wifi_setup);
+                  Lvgl_unlock();
+                  Lvgl_RequestRender(6);
                 }
                 xEventGroupSetBits(ConfigGroups,CFG_REQ_START);
             } else {
@@ -265,52 +265,40 @@ void BOOT_LoopTask(void *arg) {
 /* KEY gestures are dispatched by the visible page. Keep these entry points
    separate so each page can gain its own interaction without changing button
    decoding or view navigation. */
-static void calendar_key_single_click(void)
-{
-}
+static void calendar_key_single_click(void) {}
 
-static void calendar_key_double_click(void)
-{
-}
+static void calendar_key_double_click(void) {}
 
-static void calendar_key_long_press(void)
-{
-}
+static void calendar_key_long_press(void) {}
 
-static void wifi_setup_key_single_click(void)
-{
-}
+static void wifi_setup_key_single_click(void) {}
 
-static void wifi_setup_key_double_click(void)
-{
-}
+static void wifi_setup_key_double_click(void) {}
 
-static void wifi_setup_key_long_press(void)
-{
-    xEventGroupSetBits(ConfigGroups, CFG_REQ_ENABLE);
-}
+static void wifi_setup_key_long_press(void) { xEventGroupSetBits(ConfigGroups, CFG_REQ_ENABLE); }
 
-void KEY_LoopTask(void *arg) {
-    for(;;) {
-        EventBits_t even = xEventGroupWaitBits(GP18ButtonGroups,(0x01 | 0x02 | 0x04),pdTRUE,pdFALSE,pdMS_TO_TICKS(2000));
-        if(is_CfgViewOn) {
-            if(even & 0x01) {
-                wifi_setup_key_single_click();
-            } else if(even & 0x02) {
-                wifi_setup_key_double_click();
-            } else if(even & 0x04) {
-                wifi_setup_key_long_press();
-            }
-        } else {
-            if(even & 0x01) {
-                calendar_key_single_click();
-            } else if(even & 0x02) {
-                calendar_key_double_click();
-            } else if(even & 0x04) {
-                calendar_key_long_press();
-            }
-        }
+void KEY_LoopTask(void* arg) {
+  for (;;) {
+    EventBits_t even = xEventGroupWaitBits(GP18ButtonGroups, (0x01 | 0x02 | 0x04), pdTRUE, pdFALSE,
+                                           pdMS_TO_TICKS(2000));
+    if (is_CfgViewOn) {
+      if (even & 0x01) {
+        wifi_setup_key_single_click();
+      } else if (even & 0x02) {
+        wifi_setup_key_double_click();
+      } else if (even & 0x04) {
+        wifi_setup_key_long_press();
+      }
+    } else {
+      if (even & 0x01) {
+        calendar_key_single_click();
+      } else if (even & 0x02) {
+        calendar_key_double_click();
+      } else if (even & 0x04) {
+        calendar_key_long_press();
+      }
     }
+  }
 }
 
 static void cfg_set_labels(const char *state, const char *ap_hint) {
@@ -348,44 +336,49 @@ void Config_LoopTask(void *arg) {
     bool active = false;
     bool view_open = false;
     for(;;) {
-        EventBits_t even = xEventGroupWaitBits(ConfigGroups,
-            (CFG_REQ_START | CFG_REQ_STOP | CFG_REQ_ENABLE),pdTRUE,pdFALSE,pdMS_TO_TICKS(500));
-        if(even & CFG_REQ_START) {
-            view_open = true;
-            cfg_set_labels("Long-press KEY\nto enable hotspot", "Hotspot disabled\nLong-press BOOT to exit");
+      EventBits_t even =
+          xEventGroupWaitBits(ConfigGroups, (CFG_REQ_START | CFG_REQ_STOP | CFG_REQ_ENABLE), pdTRUE,
+                              pdFALSE, pdMS_TO_TICKS(500));
+      if (even & CFG_REQ_START) {
+        view_open = true;
+        cfg_set_labels("Long-press KEY\nto enable hotspot",
+                       "Hotspot disabled\nLong-press BOOT to exit");
         }
         if(even & CFG_REQ_STOP) {
-            view_open = false;
-            bool was_active = active;
-            if(active) {
-                active = false;
-                espwifi_config_stop();
-                xSemaphoreGive(WifiMutex);
-            }
+          view_open = false;
+          bool was_active = active;
+          if (active) {
+            active = false;
+            espwifi_config_stop();
+            xSemaphoreGive(WifiMutex);
+          }
             cfg_set_labels("Long-press BOOT\nto configure", NULL);
             /* Credentials may have just been saved; take the time straight away
                rather than leaving the clock uncorrected until the daily window. */
-            if(was_active) {
-                xEventGroupSetBits(ConfigGroups,CFG_SYNC_NOW);
+            if (was_active) {
+              xEventGroupSetBits(ConfigGroups, CFG_SYNC_NOW);
             }
             continue;
         }
-        if((even & CFG_REQ_ENABLE) && view_open && !active) {
-            active = true;
-            /* The label goes up before the mutex: a sync window in progress
-               holds the radio for up to half a minute. */
-            cfg_set_labels("Starting hotspot...", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
-            xSemaphoreTake(WifiMutex,portMAX_DELAY);
-            if(!is_CfgViewOn) {
-                active = false;
-                xSemaphoreGive(WifiMutex);
-                continue;
-            }
-            espwifi_config_start();
-            cfg_set_labels("Hotspot ready\nJoin it, page pops up", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS "\nPortal: 192.168.4.1");
-        }
-        if(!active) {
+        if ((even & CFG_REQ_ENABLE) && view_open && !active) {
+          active = true;
+          /* The label goes up before the mutex: a sync window in progress
+             holds the radio for up to half a minute. */
+          cfg_set_labels("Starting hotspot...",
+                         "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
+          xSemaphoreTake(WifiMutex, portMAX_DELAY);
+          if (!is_CfgViewOn) {
+            active = false;
+            xSemaphoreGive(WifiMutex);
             continue;
+          }
+          espwifi_config_start();
+          cfg_set_labels("Hotspot ready\nJoin it, page pops up",
+                         "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS
+                         "\nPortal: 192.168.4.1");
+        }
+        if (!active) {
+          continue;
         }
         EventBits_t wifi_even = xEventGroupGetBits(wifi_even_);
         if(wifi_even & WIFI_EV_AP_CLIENT) {
@@ -420,11 +413,7 @@ void UserApp_AppInit() {
 
 void UserApp_UiInit() {
     calendar_ui_data_t empty = {};
-    setup_ui(&init_ui);
-    /* The GUI Guider dashboard is replaced wholesale. Deleting it here keeps the
-       generated screen file untouched and regenerable. */
-    lv_obj_del(init_ui.screen_cont_2);
-    init_ui.screen_cont_2 = NULL;
+    wifi_setup_page_init(&init_ui);
     calendar_ui_create(init_ui.screen);
     calendar_ui_refresh_all(&empty);
 #if LVGL_DEBUG_LOG

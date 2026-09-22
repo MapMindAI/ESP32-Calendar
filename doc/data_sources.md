@@ -163,6 +163,6 @@ FPS and CPU usage. No application-side performance counters are used.
 | SHTC3 reads, validation and smoothing | `components/app_bsp/sensor_manager.cpp` |
 | Battery voltage and percentage conversion | `components/port_bsp/adc_bsp.cpp` |
 | Polling tasks and UI update thresholds | `components/user_app/user_app.cpp` |
-| Calendar-derived values | `components/ui_bsp/custom/calendar_calc.c` |
-| Dashboard rendering | `components/ui_bsp/custom/calendar_ui.c` |
+| Calendar-derived values | `components/ui_bsp/page_calendar/calendar_calc.c` |
+| Dashboard rendering | `components/ui_bsp/page_calendar/calendar_ui.c` |
 | LVGL render cadence and LCD flush | `components/app_bsp/lvgl_bsp.cpp`, `main/main.cpp` |

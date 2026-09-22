@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#include "lvgl.h"
 #include "calendar_calc.h"
+#include "lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,13 +17,13 @@ extern "C" {
  */
 
 /* Build the dashboard as a full-screen container on `parent`. */
-void calendar_ui_create(lv_obj_t *parent);
+void calendar_ui_create(lv_obj_t* parent);
 
 /* The container, for the show/hide juggling the view switcher does. */
-lv_obj_t *calendar_ui_root(void);
+lv_obj_t* calendar_ui_root(void);
 
 /* Redraw everything. Used at boot and whenever the date rolls over. */
-void calendar_ui_refresh_all(const calendar_ui_data_t *data);
+void calendar_ui_refresh_all(const calendar_ui_data_t* data);
 
 /* Minute cadence: only the big clock. */
 void calendar_ui_update_time(int hour, int minute, bool valid);
@@ -38,10 +38,10 @@ void calendar_ui_update_battery(uint8_t percent);
    daily sync windows, so the icon reports how the last one went rather than a
    live link state. */
 typedef enum {
-    CALENDAR_WIFI_UNSET,   /* no credentials stored — the setup view is the fix */
-    CALENDAR_WIFI_ACTIVE,  /* radio up right now: a sync window or the portal */
-    CALENDAR_WIFI_SYNCED,  /* radio down again, the last window got the time */
-    CALENDAR_WIFI_FAILED,  /* radio down, the last window did not */
+  CALENDAR_WIFI_UNSET,  /* no credentials stored — the setup view is the fix */
+  CALENDAR_WIFI_ACTIVE, /* radio up right now: a sync window or the portal */
+  CALENDAR_WIFI_SYNCED, /* radio down again, the last window got the time */
+  CALENDAR_WIFI_FAILED, /* radio down, the last window did not */
 } calendar_wifi_state_t;
 
 /* Sync cadence: only the lower-right Wi-Fi icon. */

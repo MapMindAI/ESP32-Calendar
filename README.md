@@ -17,7 +17,7 @@ captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below)
 The tree still starts from Waveshare's factory self-test demo; see **[AGENTS.md](AGENTS.md)** §10
 for what is still residue.
 
-* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4** (dashboard hand-written; Wi-Fi setup generated with NXP GUI Guider)
+* Target: `esp32s3` · ESP-IDF **v5.5.x** · LVGL **8.4**
 * Flash layout: single 8 MB factory app, no OTA (`partitions.csv`)
 * Timezone and NTP server: `idf.py menuconfig` → **ESP32 Calendar** (`CONFIG_CALENDAR_TIMEZONE`, default `CST-8`)
 * Time of the daily sync window: `TIME_SYNC_HOUR` / `TIME_SYNC_MINUTE` in `components/user_app/user_app.cpp`
@@ -101,7 +101,7 @@ main/            app_main, boot order, LVGL→1-bit flush callback, pin defines
 components/
   port_bsp/      hardware ports: display, I2C, sensors/RTC, codec, SD, buttons, ADC
   app_bsp/       LVGL port, Wi-Fi STA + captive-portal config, time (RTC+SNTP) and sensor managers
-  ui_bsp/        hand-written dashboard (custom/) plus GUI Guider output (generated/)
+  ui_bsp/        calendar page (page_calendar/) plus Wi-Fi setup page (page_wifi_setup/)
   user_app/      application entry points and FreeRTOS tasks
   ExternLib/     vendored third-party components (SensorLib, codec_board)
 doc/             project documentation
@@ -143,4 +143,3 @@ rules for generated and vendored code.
 
 * [ESP-IDF v5.5 programming guide](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/index.html)
 * [LVGL 8.4 documentation](https://docs.lvgl.io/8.4/)
-* [NXP GUI Guider](https://www.nxp.com/design/design-center/software/development-software/gui-guider:GUI-GUIDER) — generates `components/ui_bsp/generated/`

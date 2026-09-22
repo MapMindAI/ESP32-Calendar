@@ -5,7 +5,7 @@ How the dashboard's Chinese almanac text is produced, and how to regenerate it.
 ## What the firmware consumes
 
 The firmware never reads a data file at run time — the table is compiled in as `const` arrays under
-`components/ui_bsp/custom/`. Three generated assets, all produced together:
+`components/ui_bsp/page_calendar/`. Three generated assets, all produced together:
 
 | Asset | Holds | Read by |
 |---|---|---|

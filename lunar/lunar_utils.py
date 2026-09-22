@@ -8,7 +8,7 @@ day is suitable for a particular wedding, move, or burial.
 
 Computing a day table from scratch needs ``lunar_python`` for the daily 宜忌.
 The run writes a human-readable CSV under lunar/ and the compact bitset header
-consumed by components/ui_bsp/custom/:
+consumed by components/ui_bsp/page_calendar/:
 
     python3 lunar/lunar_utils.py
 
@@ -29,7 +29,7 @@ FIRST_YEAR = 2026
 LAST_YEAR = 2030
 
 CSV_PATH = Path("lunar/auspicious_days_2026_2030.csv")
-HEADER_PATH = Path("components/ui_bsp/custom/lunar_auspicious_days.h")
+HEADER_PATH = Path("components/ui_bsp/page_calendar/lunar_auspicious_days.h")
 
 # Encoded lunar years: low nibble is leap month (0 if none), bit 16 says a
 # leap month has 30 days, and bits 4..15 encode months 1..12 (1 = 30 days).

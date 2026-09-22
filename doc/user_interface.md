@@ -7,11 +7,11 @@ Code map:
 
 | Concern | File |
 |---|---|
-| Dashboard widget tree, positions, styles | `components/ui_bsp/custom/calendar_ui.c` |
-| Date maths and the UI data model | `components/ui_bsp/custom/calendar_calc.c`, `calendar_calc.h` |
-| UI fonts | `components/ui_bsp/fonts/`, declared in `calendar_fonts.h` or `gui_guider.h` |
-| Wi-Fi setup view | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
-| Widget handles (`lv_ui` struct) | `components/ui_bsp/generated/gui_guider.h` |
+| Dashboard widget tree, positions, styles | `components/ui_bsp/page_calendar/calendar_ui.c` |
+| Date maths and the UI data model | `components/ui_bsp/page_calendar/calendar_calc.c`, `calendar_calc.h` |
+| UI fonts | `components/ui_bsp/fonts/`, declared in `calendar_fonts.h` or `wifi_setup_page.h` |
+| Wi-Fi setup view | `components/ui_bsp/page_wifi_setup/wifi_setup_page_layout.c` |
+| Widget handles (`wifi_setup_page_t` struct) | `components/ui_bsp/page_wifi_setup/wifi_setup_page.h` |
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
 | System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
 | Station bring-up/teardown, captive portal | `components/app_bsp/esp_wifi_bsp.c`, `wifi_portal.c` |
@@ -28,7 +28,7 @@ For source, validation and synchronization details, see
 * **400 × 300 landscape, 1 bit per pixel.** There is no grey. LVGL renders RGB565 and the flush
   callback in `main/main.cpp` thresholds every pixel at `0x7fff` — anything darker than mid-grey
   becomes black. Anti-aliased font edges, gradients and shadows all collapse; design in pure black
-  and white and check contrast at the threshold, not in the GUI Guider preview.
+  and white and check contrast at the threshold, not in a colour preview.
 * **Reflective, no backlight.** Contrast comes from ambient light. Large type and solid fills read
   well; hairlines and light-grey chrome disappear.
 * **Full refresh every flush.** `disp_drv.full_refresh = 1`, so the entire 400 × 300 frame is
@@ -41,17 +41,15 @@ For source, validation and synchronization details, see
 
 There is exactly **one** LVGL screen (`ui->screen`, white background). Two full-size containers
 sit on it, and navigation is done by toggling `LV_OBJ_FLAG_HIDDEN` on them — `lv_scr_load()` and
-GUI Guider's screen-animation helpers are not used.
+LVGL screen-animation helpers are not used.
 
 | Container | View | Initial state |
 |---|---|---|
 | `calendar_ui_root()` | Status dashboard (the home view) | visible |
 | `screen_cont_wifi_setup` | Wi-Fi setup / configuration | hidden |
 
-The dashboard is **not** GUI Guider output. `UserApp_UiInit()` calls `setup_ui()`, deletes the
-generated `screen_cont_2`, then builds `calendar_ui` on the same screen. The obsolete image
-container and its bitmap asset have been removed from the generated source. The dashboard is laid
-out in hand-written code where 42 calendar cells are cheap to express.
+`UserApp_UiInit()` calls `wifi_setup_page_init()` and builds `calendar_ui` directly on the same
+screen. The dashboard is laid out in hand-written code where 42 calendar cells are cheap to express.
 
 The invariant is *exactly one container visible at a time*. Every switch clears the incoming
 container's hidden flag and hides the other container. Adding a view means extending `show_view()`.
@@ -186,19 +184,19 @@ Time_SyncTask ──▶ Wi-Fi up ──▶ SNTP ──▶ Wi-Fi down ──▶ w
 * `sensor_manager` (`components/app_bsp/sensor_manager.cpp`) is the only thing that knows the part is
   an SHTC3. It range-checks every reading (−40…85 °C, 0…100 %RH) and smooths it (α = 0.2) so a
   sensor dithering between 24.7 and 24.8 does not walk over the refresh threshold each minute.
-* `calendar_calc` (`components/ui_bsp/custom/calendar_calc.c`) turns a `struct tm` into the
+* `calendar_calc` (`components/ui_bsp/page_calendar/calendar_calc.c`) turns a `struct tm` into the
   `calendar_ui_data_t` the UI draws: weekday (Monday-first), ISO 8601 week number, day of year.
   It also looks up the generated 2026--2030 almanac: the 黄道吉日 bit, the 十二建除 officer and the
   十二值神 deity, the last two as 4-bit indices into the name tables in `calendar_ui.c`. The UI
   reads that struct and nothing else.
 * `lunar/lunar_utils.py` produces both the complete
   `lunar/auspicious_days_2026_2030.csv` reference list and the compact
-  `components/ui_bsp/custom/lunar_auspicious_days.h` firmware asset. “黄道吉日” here uses the
+  `components/ui_bsp/page_calendar/lunar_auspicious_days.h` firmware asset. “黄道吉日” here uses the
   traditional 十二值日 definition: 除、危、定、执、成、开. It is a calendar classification, not a
   recommendation for a particular activity. Dates outside 2026--2030 deliberately leave the
   centre status blank rather than presenting an invented result.
   `lunar/generate_ui_yiji.py` turns the CSV's 宜 / 忌 columns into
-  `components/ui_bsp/custom/lunar_yiji_data.h` — the complete list for every day, ~275 KiB of flash,
+  `components/ui_bsp/page_calendar/lunar_yiji_data.h` — the complete list for every day, ~275 KiB of flash,
   because the bar clips each line rather than truncating the data — plus the 1 bpp font that covers
   every character those lists use. Both scripts rebuild their firmware assets from the checked-in CSV
   with `--from-csv`; see [`almanac.md`](almanac.md) for the full regeneration procedure.
@@ -239,7 +237,7 @@ device's own configuration hotspot is doing; all text entry happens on the phone
 
 These are the only app labels written **with** the LVGL lock. The state text is English-only: the
 only CJK glyphs present in `lv_font_MISANSMEDIUM_25` are those the audio strings used, so a Chinese
-line here would render blank until the font is regenerated in GUI Guider (see §5).
+line here would render blank until the font subset is regenerated (see §5).
 
 ### 3.3 Wi-Fi setup flow
 
@@ -370,9 +368,7 @@ different places.
 | `lv_font_calendar_yiji_12` | 12 px | 1 | the `宜：` / `忌：` lines in the bottom bar (one clipped line each) and the single `建除：… 值神：…` line in the left column |
 | `lv_font_montserrat_14` | 14 px | 4 | the bottom-bar Wi-Fi icon and its `✓` marker — LVGL's built-in default face, the only one here carrying `LV_SYMBOL_WIFI` / `LV_SYMBOL_OK` |
 | `lv_font_MISANSMEDIUM_25` | 25 px | 4 | Wi-Fi setup title and state line |
-| `lv_font_MISANSMEDIUM_20` | 20 px | 4 | — (unused since the dashboard was replaced) |
 | `lv_font_MISANSMEDIUM_18` | 18 px | 4 | Wi-Fi setup portal/hint lines |
-| `lv_font_MISANSMEDIUM_100` | 100 px | 4 | — (unused since the dashboard was replaced) |
 
 The `lv_font_calendar_*` faces are DejaVu Sans Condensed Bold subsets generated with `lv_font_conv`
 and checked in under `components/ui_bsp/fonts/`. They are **1 bpp on purpose**: the flush
@@ -399,11 +395,9 @@ A hand-written `lv_font_fmt_txt_*` face must keep `glyph_id_start = 1` **and** r
 `glyph_dsc[glyph_id_start + index]`, so a face without the placeholder draws each character with the
 next character's glyph and reads past the end of the array for its last one.
 
-The MiSans faces remain GUI Guider output and still serve the setup view. Its 25 px subset holds
+The MiSans faces serve the setup view. Its 25 px subset holds
 only the 13 CJK glyphs the removed audio strings needed (`等待操作正在录音完成播放音乐`), which is why
 that view is English-only; the Chinese half of its strings lives in the phone-facing portal page.
-The 20 px and 100 px MiSans faces have no user left and are candidates for removal from the GUI
-Guider project.
 
 All generated bitmap assets have been removed. The dashboard is text, 1 px rules and the single
 `LV_SYMBOL_WIFI` glyph in the bottom bar — no bitmap icons, gauges or weather art.
@@ -412,12 +406,12 @@ All generated bitmap assets have been removed. The dashboard is text, 1 px rules
 
 Which half of the UI you are in decides the workflow:
 
-* **Dashboard** — edit `components/ui_bsp/custom/calendar_ui.c` directly. Layout constants live at
+* **Dashboard** — edit `components/ui_bsp/page_calendar/calendar_ui.c` directly. Layout constants live at
   the top of that file; every widget is built by `calendar_ui_create()` and written by one of the
   `calendar_ui_update_*` / `calendar_ui_refresh_all` entry points. Nothing else may touch those
   widgets.
-* **Wi-Fi setup view** — lay the widget out in the GUI Guider project and regenerate
-  `components/ui_bsp/generated/`. Hand-edits there are lost on the next regeneration.
+* **Wi-Fi setup view** — edit `components/ui_bsp/page_wifi_setup/wifi_setup_page_layout.c`; it owns the
+  setup view's static layout and initial labels.
 
 Then, in both cases:
 
@@ -436,12 +430,8 @@ Then, in both cases:
 
 Inherited from the factory demo, or left by the dashboard rewrite; flag rather than preserve:
 
-* The 20 px and 100 px MiSans faces are still compiled with no user. They will disappear on the next
-  GUI Guider regeneration only if they are removed from the project first.
-* `screen_cont_2` is still built by `setup_scr_screen.c` and then deleted at init — a few hundred
-  bytes of widget churn at boot. Removing the container from the GUI Guider project is the real fix.
-* The setup view is English-only, because the generated MiSans subsets do not cover the Chinese it
-  needs (§5). Regenerate the fonts in GUI Guider if the bilingual policy has to hold there.
+* The setup view is English-only, because the MiSans subsets do not cover the Chinese it needs (§5).
+  Regenerate the font subsets if the bilingual policy has to hold there.
 * The codec hardware, `canon.pcm` and the 288 KB PSRAM audio buffer are no longer used by anything —
   `CodecPort` is not instantiated; only the `codec_bsp` component remains linked.
 * `ble_scan_bsp` is still compiled and linked but no longer called: the BLE device count went with

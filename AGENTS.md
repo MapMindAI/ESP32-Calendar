@@ -46,8 +46,8 @@ by calendar functionality — see §10 for what is residue and what is real.
 │   │   ├── sensor_manager.*    # Temperature/humidity behind one interface; range-checked and smoothed
 │   │   └── ble_scan_bsp.*      # BLE scan; pushes discovered MACs onto ble_queue (unused, see §10)
 │   ├── ui_bsp/
-│   │   ├── generated/          # GUI Guider output (image + Wi-Fi setup views, fonts, images) — regenerate, do not hand-edit
-│   │   └── custom/             # Hand-written UI: calendar_ui.*, calendar_calc.*, fonts/, custom_init(), lv_conf_ext.h
+│   │   ├── page_calendar/      # Hand-written calendar page: calendar_ui.*, calendar_calc.*, almanac assets
+│   │   └── page_wifi_setup/    # Wi-Fi setup page layout and widget handles
 │   ├── user_app/               # The application: UserApp_AppInit / UserApp_UiInit / UserApp_TaskInit + every app task
 │   └── ExternLib/              # Vendored third-party components, checked into git — do not hand-edit
 │       ├── SensorLib/          # Lewis He's sensor library (PCF85063 RTC is the only part used)
@@ -142,10 +142,6 @@ codec_board component's own format.
 
 Do not hand-edit:
 
-* `components/ui_bsp/generated/**` — GUI Guider output. UI changes belong in the GUI Guider project;
-  behaviour that must live in code goes in `components/ui_bsp/custom/` or `user_app.cpp`. If a
-  generated file must be patched to build, say so explicitly in the commit message — it will be lost
-  on the next regeneration.
 * `components/ExternLib/SensorLib/**`, `components/ExternLib/codec_board/**` (except the
   `S3_RLCD_4_2` entry in `board_cfg.txt`, which is this board's), `components/port_bsp/src/multi_button/**`.
 * `managed_components/**` — gitignored and regenerated; changes there vanish.
@@ -209,9 +205,6 @@ Flag these rather than quietly preserving them; several are things a calendar bu
   nothing. (`adc_bsp` is in use: `Battery_LoopTask` reads it for the bottom-right battery label.)
 * `sdcard_bsp` is linked but the card is no longer mounted: the `/sdcard` FAT mount existed only for
   the `Lvgl_SDcardTask` self-test, which is gone.
-* The GUI Guider project still builds `screen_cont_2` (the old dashboard), which `UserApp_UiInit()`
-  deletes immediately after `setup_ui()`. Removing it from the GUI Guider project is the real fix;
-  so is dropping the now-unused 20 px and 100 px MiSans faces and the sensor/battery icons.
 * `espressif/avi_player` and `espressif/esp_new_jpeg` are declared in `main/idf_component.yml` and
   linked by `app_bsp`, but nothing calls them — dead weight, safe to drop if nothing needs video.
 * `SensorLib` is linked from `port_bsp` for the PCF85063 RTC alone.
