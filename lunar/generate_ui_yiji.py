@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from lunar_utils import CSV_PATH, DAY_DEITIES, HEAVENLY_OFFICERS, all_days, load_csv
 
-OUT = Path(__file__).resolve().parents[1] / "components/ui_bsp/custom"
+OUT = Path(__file__).resolve().parents[1] / "components/ui_bsp/page_calendar"
 
 # The 建除 / 值神 labels, the space that separates them on the dashboard's single
 # status line, and every name either of them can print.
