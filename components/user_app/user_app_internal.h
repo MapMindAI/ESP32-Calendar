@@ -19,6 +19,10 @@ extern wifi_setup_page_t WifiSetupPage;
 extern bool IsCfgViewOn;
 
 void Calendar_LoopTask(void* arg);
+void CalendarView_AdvanceDay(void);
+void CalendarView_AdvanceMonth(void);
+void CalendarView_ResetDay(void);
+void CalendarView_Render(void);
 void Sensor_LoopTask(void* arg);
 void Battery_LoopTask(void* arg);
 void Time_SyncTask(void* arg);
