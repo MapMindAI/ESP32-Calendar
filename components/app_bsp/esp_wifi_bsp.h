@@ -43,14 +43,20 @@ void espwifi_deinit(void);
 /* True if Wi-Fi (STA) is currently initialised and started. */
 bool espwifi_is_active(void);
 
-/* Boot path: read credentials from NVS; if present start STA and connect.
-   Returns true when credentials existed and Wi-Fi was started. */
+/* Sync path: read credentials from NVS; if present start STA and connect.
+   Returns true when credentials existed and Wi-Fi was started. The radio stays
+   up until the caller calls espwifi_deinit(). */
 bool espwifi_connect_stored(void);
+
+/* Block until the station has an address or `timeout_ms` elapses. Pairs with
+   espwifi_connect_stored(). */
+bool espwifi_wait_for_ip(uint32_t timeout_ms);
 
 /* Config path: start softAP + captive portal, scan and keep results for the portal. */
 void espwifi_config_start(void);
 
-/* Config path: stop portal/AP. Keeps STA up when connected, tears Wi-Fi down otherwise. */
+/* Config path: stop the portal and tear Wi-Fi down. The radio is not kept up
+   after setup — the daily sync window in user_app brings it back when needed. */
 void espwifi_config_stop(void);
 
 /* Use the submitted credentials to connect. Blocks up to 20 s.

@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <esp_log.h>
 #include "button_bsp.h"
 #include "user_app.h"
@@ -21,6 +23,20 @@ EventGroupHandle_t ConfigGroups;
 /* ConfigGroups bits */
 #define CFG_REQ_START 0x01
 #define CFG_REQ_STOP  0x02
+#define CFG_SYNC_NOW  0x04  /* cut Time_SyncTask's wait short and open a window now */
+
+/* Wi-Fi is by far the largest draw on this board and the PCF85063 holds the
+   clock to a few seconds a day, so the radio is down except inside a sync
+   window: connect, take the time from SNTP, tear Wi-Fi back down. One window
+   runs at boot, one a day at the local time below, and one after the setup view
+   closes. Change TIME_SYNC_HOUR/TIME_SYNC_MINUTE to move the daily window. */
+#define TIME_SYNC_HOUR            3
+#define TIME_SYNC_MINUTE          30
+#define TIME_SYNC_IP_TIMEOUT_MS   (20 * 1000)
+#define TIME_SYNC_SNTP_TIMEOUT_MS (15 * 1000)
+/* A window that came back empty is retried on this cadence instead of waiting
+   out the day — a board whose RTC is flat has no time to display until one lands. */
+#define TIME_SYNC_RETRY_MINUTES   30
 
 /* The panel repaints in full on any invalidation, so a widget is only written
    when the value behind it actually moved: the clock at minute resolution, the
@@ -32,6 +48,10 @@ EventGroupHandle_t ConfigGroups;
 #define BATTERY_READ_INTERVAL_MS       60000
 
 static bool is_CfgViewOn = false;
+
+/* One user of the radio at a time: the daily sync window and the setup view both
+   bring Wi-Fi up and take it down again. */
+static SemaphoreHandle_t WifiMutex;
 
 /* Clock and calendar. Polls the system clock once a second and writes a widget
    only on a minute or date change. */
@@ -134,14 +154,62 @@ void Sensor_LoopTask(void *arg) {
     }
 }
 
-/* Waits for the station to get an address — at boot from stored credentials, or
-   later from the setup view — then hands the clock over to SNTP and exits. */
-void Time_SyncTask(void *arg) {
-    for(;!user_esp_bsp._ip[0];) {
-        vTaskDelay(pdMS_TO_TICKS(2000));
+static void wifi_status_publish(calendar_wifi_state_t state) {
+    if(Lvgl_lock(-1)) {
+        calendar_ui_update_wifi(state);
+        Lvgl_unlock();
     }
-    time_manager_start_sntp();
-    vTaskDelete(NULL);
+}
+
+/* One sync window: radio up, SNTP, radio down. Returns true when the clock was
+   corrected. The icon follows the window, so the panel says what the radio is
+   doing without the user having to open the setup view. */
+static bool time_sync_window(void) {
+    bool synced = false;
+
+    xSemaphoreTake(WifiMutex,portMAX_DELAY);
+    wifi_status_publish(CALENDAR_WIFI_ACTIVE);
+    if(!espwifi_connect_stored()) {
+        wifi_status_publish(CALENDAR_WIFI_UNSET);
+        xSemaphoreGive(WifiMutex);
+        return false;
+    }
+    if(espwifi_wait_for_ip(TIME_SYNC_IP_TIMEOUT_MS)) {
+        synced = time_manager_sync_now(TIME_SYNC_SNTP_TIMEOUT_MS);
+    }
+    espwifi_deinit();
+    wifi_status_publish(synced ? CALENDAR_WIFI_SYNCED : CALENDAR_WIFI_FAILED);
+    xSemaphoreGive(WifiMutex);
+    return synced;
+}
+
+/* Seconds until the next TIME_SYNC_HOUR:TIME_SYNC_MINUTE. A window that failed,
+   or a clock that cannot say what time it is, gets the short retry instead. */
+static uint32_t seconds_until_next_window(bool synced) {
+    struct tm local;
+
+    if(!synced || !time_manager_get_local(&local)) {
+        return TIME_SYNC_RETRY_MINUTES * 60;
+    }
+    int now_second  = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec;
+    int next_second = TIME_SYNC_HOUR * 3600 + TIME_SYNC_MINUTE * 60;
+    int remaining   = next_second - now_second;
+
+    if(remaining <= 0) {
+        remaining += 24 * 3600;
+    }
+    return (uint32_t)remaining;
+}
+
+/* Opens a sync window at boot and one a day after that; CFG_SYNC_NOW from the
+   setup view brings the next one forward. */
+void Time_SyncTask(void *arg) {
+    for(;;) {
+        bool synced = time_sync_window();
+        uint32_t wait_s = seconds_until_next_window(synced);
+
+        xEventGroupWaitBits(ConfigGroups,CFG_SYNC_NOW,pdTRUE,pdFALSE,pdMS_TO_TICKS(wait_s * 1000U));
+    }
 }
 
 static void show_view(lv_obj_t *view)
@@ -217,7 +285,10 @@ void Config_LoopTask(void *arg) {
         if(even & CFG_REQ_START) {
             if(!active) {
                 active = true;
+                /* The label goes up before the mutex: a sync window in progress
+                   holds the radio for up to half a minute. */
                 cfg_set_labels("Starting hotspot...", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
+                xSemaphoreTake(WifiMutex,portMAX_DELAY);
                 espwifi_config_start();
                 cfg_set_labels("Hotspot ready\nJoin it, page pops up", "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS "\nPortal: 192.168.4.1");
             }
@@ -228,7 +299,11 @@ void Config_LoopTask(void *arg) {
         if(even & CFG_REQ_STOP) {
             active = false;
             espwifi_config_stop();
+            xSemaphoreGive(WifiMutex);
             cfg_set_labels("Long-press BOOT\nto configure", NULL);
+            /* Credentials may have just been saved; take the time straight away
+               rather than leaving the clock uncorrected until the daily window. */
+            xEventGroupSetBits(ConfigGroups,CFG_SYNC_NOW);
             continue;
         }
         EventBits_t wifi_even = xEventGroupGetBits(wifi_even_);
@@ -258,7 +333,8 @@ void UserApp_AppInit() {
     time_manager_init(&I2cbus);
     sensor_manager_init(&I2cbus);
     ConfigGroups = xEventGroupCreate();
-    espwifi_connect_stored();
+    WifiMutex = xSemaphoreCreateMutex();
+    assert(WifiMutex != NULL);
 }
 
 void UserApp_UiInit() {
@@ -277,7 +353,7 @@ void UserApp_TaskInit() {
     xTaskCreatePinnedToCore(Calendar_LoopTask, "Calendar_LoopTask", 5 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Sensor_LoopTask, "Sensor_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Battery_LoopTask, "Battery_LoopTask", 4 * 1024, NULL, 2, NULL,1);
-    xTaskCreatePinnedToCore(Time_SyncTask, "Time_SyncTask", 4 * 1024, NULL, 2, NULL,1);
+    xTaskCreatePinnedToCore(Time_SyncTask, "Time_SyncTask", 5 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(BOOT_LoopTask, "BOOT_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(KEY_LoopTask, "KEY_LoopTask", 4 * 1024, NULL, 2, NULL,1);
     xTaskCreatePinnedToCore(Config_LoopTask, "Config_LoopTask", 5 * 1024, NULL, 2, NULL,1);

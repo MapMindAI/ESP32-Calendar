@@ -16,8 +16,12 @@
 /* Set the timezone, bring the RTC up on `bus` and seed the system clock from it. */
 esp_err_t time_manager_init(I2cMasterBus *bus);
 
-/* Start SNTP. Call once the STA has an IP; further calls do nothing. */
-void time_manager_start_sntp(void);
+/* Run one SNTP exchange and block until it lands or `timeout_ms` elapses. The
+   station must already have an address; the caller owns bringing Wi-Fi up and
+   taking it down again. On success both the system clock and the PCF85063 are
+   updated. SNTP is torn down again before returning either way, so the radio
+   can be shut off immediately afterwards. */
+bool time_manager_sync_now(uint32_t timeout_ms);
 
 /* Broken-down local time. Returns false (and leaves `out` untouched) while the
    clock is not valid. */

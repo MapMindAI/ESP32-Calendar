@@ -1,5 +1,6 @@
 #include <sys/time.h>
 
+#include <freertos/FreeRTOS.h>
 #include <esp_log.h>
 #include <esp_netif_sntp.h>
 #include <esp_sntp.h>
@@ -11,8 +12,6 @@ static const char *TAG = "time_mgr";
 
 /* Anything before this is the epoch leaking through, not a date a user set. */
 #define TIME_VALID_MIN_YEAR 2024
-
-static bool sntp_started = false;
 
 static void write_rtc_from_system_time(void)
 {
@@ -26,12 +25,6 @@ static void write_rtc_from_system_time(void)
     ESP_LOGI(TAG, "RTC set from SNTP: %04d-%02d-%02d %02d:%02d:%02d",
              local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
              local.tm_hour, local.tm_min, local.tm_sec);
-}
-
-static void on_sntp_sync(struct timeval *tv)
-{
-    (void)tv;
-    write_rtc_from_system_time();
 }
 
 esp_err_t time_manager_init(I2cMasterBus *bus)
@@ -72,23 +65,29 @@ esp_err_t time_manager_init(I2cMasterBus *bus)
     return ESP_OK;
 }
 
-void time_manager_start_sntp(void)
+bool time_manager_sync_now(uint32_t timeout_ms)
 {
-    if (sntp_started) {
-        return;
-    }
-
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(CONFIG_CALENDAR_NTP_SERVER);
     config.start             = true;
-    config.sync_cb           = on_sntp_sync;
 
     esp_err_t err = esp_netif_sntp_init(&config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_netif_sntp_init: %s", esp_err_to_name(err));
-        return;
+        return false;
     }
-    sntp_started = true;
-    ESP_LOGI(TAG, "SNTP started against %s", CONFIG_CALENDAR_NTP_SERVER);
+
+    /* Block rather than use a sync callback: the caller shuts the radio down the
+       moment this returns, so it has to know whether the answer arrived. */
+    bool synced = (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(timeout_ms)) == ESP_OK);
+    esp_netif_sntp_deinit();
+
+    if (synced) {
+        write_rtc_from_system_time();
+    } else {
+        ESP_LOGW(TAG, "no answer from %s within %u ms", CONFIG_CALENDAR_NTP_SERVER,
+                 (unsigned)timeout_ms);
+    }
+    return synced;
 }
 
 bool time_manager_get_local(struct tm *out)
