@@ -47,6 +47,9 @@ typedef enum {
 /* Sync cadence: only the lower-right Wi-Fi icon. */
 void calendar_ui_update_wifi(calendar_wifi_state_t state);
 
+/* Debug-only lower-right status: elapsed time since the ESP booted. */
+void calendar_ui_update_uptime(uint32_t elapsed_minutes);
+
 #ifdef __cplusplus
 }
 #endif

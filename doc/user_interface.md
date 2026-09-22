@@ -110,6 +110,7 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
 | `battery_label` | right-aligned to 384, 254 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 | `wifi_label` | right-aligned to 384, 268 (48 wide) | `LV_SYMBOL_WIFI` plus a state marker (`✓`, `...`, `!`, `?`), 14 px Montserrat | `Time_SyncTask` | at the start and end of every sync window |
+| `uptime_label` | right-aligned to 384, 284 (48 wide) | elapsed boot duration `%02u:%02u`, 12 px | `Calendar_LoopTask` | once per minute, only with `LVGL_DEBUG_LOG` |
 
 The month grid is **Monday-first and current-month-only**: no leading or trailing days from the
 neighbouring months, and today is the one inverted cell (black fill, white text, 3 px radius).
@@ -162,6 +163,10 @@ and the radio is down in three of the four — only `...` means it is up.
 
 The glyphs come from `lv_font_montserrat_14` — LVGL's default font, linked either
 way, and the only face here that carries `LV_SYMBOL_WIFI` and `LV_SYMBOL_OK` (§5).
+
+With `LVGL_DEBUG_LOG` enabled, the `HH:MM` immediately below the icon is elapsed
+time since boot (hours and minutes), refreshed each minute. It is hidden when
+`LVGL_DEBUG_LOG` is disabled.
 
 #### Where the values come from
 

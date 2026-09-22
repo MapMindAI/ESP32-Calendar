@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include "button_bsp.h"
 #include "user_app.h"
 #include "lvgl_bsp.h"
@@ -62,7 +63,19 @@ void Calendar_LoopTask(void *arg) {
     int last_minute = -1;
     int last_day = -1;
     bool last_valid = false;
+#if LVGL_DEBUG_LOG
+    uint32_t last_uptime_minutes = UINT32_MAX;
+#endif
     for(;;) {
+#if LVGL_DEBUG_LOG
+        uint32_t uptime_minutes = (uint32_t)(esp_timer_get_time() / (60LL * 1000000LL));
+        if(uptime_minutes != last_uptime_minutes && Lvgl_lock(-1)) {
+            calendar_ui_update_uptime(uptime_minutes);
+            Lvgl_unlock();
+            Lvgl_RequestRender(11);
+            last_uptime_minutes = uptime_minutes;
+        }
+#endif
         bool valid = time_manager_get_local(&local);
         if(!valid) {
             last_valid = false;
@@ -372,6 +385,9 @@ void UserApp_UiInit() {
     init_ui.screen_cont_2 = NULL;
     calendar_ui_create(init_ui.screen);
     calendar_ui_refresh_all(&empty);
+#if LVGL_DEBUG_LOG
+    calendar_ui_update_uptime((uint32_t)(esp_timer_get_time() / (60LL * 1000000LL)));
+#endif
     lv_label_set_text(init_ui.screen_label_cfg_state, "Long-press BOOT\nto configure");
 }
 
