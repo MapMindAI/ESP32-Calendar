@@ -9,7 +9,7 @@ Code map:
 |---|---|
 | Dashboard widget tree, positions, styles | `components/ui_bsp/custom/calendar_ui.c` |
 | Date maths and the UI data model | `components/ui_bsp/custom/calendar_calc.c`, `calendar_calc.h` |
-| Dashboard fonts | `components/ui_bsp/custom/fonts/`, declared in `calendar_fonts.h` |
+| UI fonts | `components/ui_bsp/fonts/`, declared in `calendar_fonts.h` or `gui_guider.h` |
 | Wi-Fi setup view | `components/ui_bsp/generated/setup_scr_screen.c` (GUI Guider output — regenerate, don't hand-edit) |
 | Widget handles (`lv_ui` struct) | `components/ui_bsp/generated/gui_guider.h` |
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
@@ -371,7 +371,7 @@ different places.
 | `lv_font_MISANSMEDIUM_100` | 100 px | 4 | — (unused since the dashboard was replaced) |
 
 The `lv_font_calendar_*` faces are DejaVu Sans Condensed Bold subsets generated with `lv_font_conv`
-and checked in under `components/ui_bsp/custom/fonts/`. They are **1 bpp on purpose**: the flush
+and checked in under `components/ui_bsp/fonts/`. They are **1 bpp on purpose**: the flush
 callback thresholds every pixel, so a 4 bpp face's anti-aliased edges are discarded at runtime and
 the extra bitmap data is pure flash cost. Condensed, because every size here is width-constrained.
 

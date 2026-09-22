@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 12 px
  * Bpp: 1
- * Opts: --font /usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf --size 12 --bpp 1 --format lvgl -r 0x20-0x7E -r 0xB0 -r 0xB7 --force-fast-kern-format --no-compress --lv-include lvgl.h -o components/ui_bsp/custom/fonts/lv_font_calendar_12.c
+ * Opts: --font /usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf --size 12 --bpp 1 --format lvgl -r 0x20-0x7E -r 0xB0 -r 0xB7 --force-fast-kern-format --no-compress --lv-include lvgl.h -o components/ui_bsp/fonts/lv_font_calendar_12.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
