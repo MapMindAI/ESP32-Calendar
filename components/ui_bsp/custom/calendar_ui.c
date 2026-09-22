@@ -37,7 +37,7 @@
 #define BAR_X 16
 #define BAR_Y 252
 #define BAR_W 368
-#define BAR_H 32
+#define BAR_H 48
 
 /* The battery reads "<n>%" — 39 px at its widest in the 12 px face — and the
    Wi-Fi icon sits under it, so the right-hand column stays narrow and the 宜/忌
@@ -65,6 +65,7 @@ static lv_obj_t *month_label;
 static lv_obj_t *calendar_days[CAL_ROWS][CAL_COLS];
 static lv_obj_t *battery_label;
 static lv_obj_t *wifi_label;
+static lv_obj_t *uptime_label;
 static lv_obj_t* yi_label;
 static lv_obj_t* ji_label;
 static lv_obj_t* ganzhi_label;
@@ -237,6 +238,9 @@ void calendar_ui_create(lv_obj_t *parent)
     wifi_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 16, BAR_STATUS_W,
                             &lv_font_montserrat_14, LV_TEXT_ALIGN_RIGHT, 0, "");
     lv_obj_set_height(wifi_label, 16);
+    uptime_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 32, BAR_STATUS_W,
+                              &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 0, "");
+    lv_obj_set_height(uptime_label, 14);
     calendar_ui_update_wifi(CALENDAR_WIFI_UNSET);
 }
 
@@ -309,6 +313,19 @@ void calendar_ui_update_wifi(calendar_wifi_state_t state)
         return;
     }
     lv_label_set_text(wifi_label, wifi_text[state]);
+}
+
+void calendar_ui_update_uptime(uint32_t elapsed_minutes)
+{
+    char buf[16];
+    uint32_t hours = elapsed_minutes / 60;
+    uint32_t minutes = elapsed_minutes % 60;
+
+    if (uptime_label == NULL) {
+        return;
+    }
+    snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)hours, (unsigned)minutes);
+    lv_label_set_text(uptime_label, buf);
 }
 
 static void clear_calendar_grid(void)
