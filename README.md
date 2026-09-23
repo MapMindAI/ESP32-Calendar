@@ -30,7 +30,7 @@ for what is still residue.
 
 | Calendar dashboard | Tarot view | Wi-Fi setup |
 |---|---|---|
-| [Video](https://github.com/user-attachments/assets/1301c299-5129-42ec-8f16-57fd5d533267) | [Video](https://github.com/user-attachments/assets/f492f592-1384-4617-833e-f0c773bc5fbb) | [Video](https://github.com/user-attachments/assets/5c6de16e-25ca-4372-8be0-140ce162817c) |
+| https://github.com/user-attachments/assets/1301c299-5129-42ec-8f16-57fd5d533267 | https://github.com/user-attachments/assets/f492f592-1384-4617-833e-f0c773bc5fbb | https://github.com/user-attachments/assets/5c6de16e-25ca-4372-8be0-140ce162817c |
 | Current time, sensor readings, day information and month navigation. | Three SD-card-backed cards, refreshed with the KEY button. | Enabling the configuration hotspot and displaying its connection details. |
 
 ## Quick start
