@@ -8,6 +8,8 @@
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_random.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "esp_jpeg_dec.h"
 #include "lvgl.h"
@@ -43,6 +45,9 @@ static int file_count = 0;
  * new set of cards is drawn. */
 static lv_img_dsc_t card_dsc[TAROT_CARD_SLOTS];
 static lv_color_t* card_pixels[TAROT_CARD_SLOTS] = {};
+/* BOOT and KEY have separate tasks, so a new draw must not overwrite buffers
+ * while the previous draw is decoding or publishing cards. */
+static volatile bool tarot_draw_in_progress = false;
 
 static bool sd_ready(void) {
   if (sd_port != nullptr && sd_port->SDPort_GetStatus()) {
@@ -198,10 +203,12 @@ static bool decode_rgb565(const char* path, uint8_t** out_rgb, uint16_t* out_w, 
 }
 
 /* Box-average each source footprint down to the on-screen card size, then reduce
- * it to black/white with an ordered dither. Pure black and white survive the
- * flush threshold unchanged, so the panel shows exactly the dot pattern chosen
- * here. */
-static lv_color_t* card_to_mono(const uint8_t* rgb, uint16_t width, uint16_t height) {
+ * it to black/white with an ordered dither. A reversed card reads its source
+ * footprints in the opposite order, which produces a 180-degree rotation
+ * without another full-card buffer. Pure black and white survive the flush
+ * threshold unchanged, so the panel shows exactly the dot pattern chosen here. */
+static lv_color_t* card_to_mono(const uint8_t* rgb, uint16_t width, uint16_t height,
+                                bool upside_down) {
   lv_color_t* pixels = (lv_color_t*)heap_caps_malloc(
       TAROT_CARD_WIDTH * TAROT_CARD_HEIGHT * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
   if (pixels == nullptr) {
@@ -211,14 +218,16 @@ static lv_color_t* card_to_mono(const uint8_t* rgb, uint16_t width, uint16_t hei
 
   const uint16_t* src = (const uint16_t*)rgb;
   for (int y = 0; y < TAROT_CARD_HEIGHT; y++) {
-    int sy0 = (int)((uint32_t)y * height / TAROT_CARD_HEIGHT);
-    int sy1 = (int)((uint32_t)(y + 1) * height / TAROT_CARD_HEIGHT);
+    int source_y = upside_down ? TAROT_CARD_HEIGHT - 1 - y : y;
+    int sy0 = (int)((uint32_t)source_y * height / TAROT_CARD_HEIGHT);
+    int sy1 = (int)((uint32_t)(source_y + 1) * height / TAROT_CARD_HEIGHT);
     if (sy1 <= sy0) {
       sy1 = sy0 + 1;
     }
     for (int x = 0; x < TAROT_CARD_WIDTH; x++) {
-      int sx0 = (int)((uint32_t)x * width / TAROT_CARD_WIDTH);
-      int sx1 = (int)((uint32_t)(x + 1) * width / TAROT_CARD_WIDTH);
+      int source_x = upside_down ? TAROT_CARD_WIDTH - 1 - x : x;
+      int sx0 = (int)((uint32_t)source_x * width / TAROT_CARD_WIDTH);
+      int sx1 = (int)((uint32_t)(source_x + 1) * width / TAROT_CARD_WIDTH);
       if (sx1 <= sx0) {
         sx1 = sx0 + 1;
       }
@@ -244,7 +253,7 @@ static void show_message(const char* text) {
   if (Lvgl_lock(-1)) {
     tarot_page_set_message(text);
     Lvgl_unlock();
-    Lvgl_RequestRender(21);
+    Lvgl_RenderNow(21);
   }
 }
 
@@ -260,7 +269,7 @@ void Tarot_ManagerInit(void) {
   }
 }
 
-void Tarot_ShowRandom(void) {
+static void tarot_draw_random(void) {
   if (file_count == 0) {
     bool ready = sd_ready();
     if (!ready) {
@@ -277,6 +286,7 @@ void Tarot_ShowRandom(void) {
 
   /* Distinct indices for this draw. */
   int chosen[TAROT_CARD_SLOTS];
+  bool upside_down[TAROT_CARD_SLOTS];
   for (int i = 0; i < slots; i++) {
     int index;
     bool duplicate;
@@ -290,9 +300,24 @@ void Tarot_ShowRandom(void) {
       }
     } while (duplicate);
     chosen[i] = index;
+    upside_down[i] = (esp_random() & 1U) != 0;
   }
 
-  lv_color_t* fresh[TAROT_CARD_SLOTS] = {};
+  /* A redraw starts with an empty spread, so an older card is never shown in a
+   * column while its replacement is still being decoded. */
+  if (Lvgl_lock(-1)) {
+    for (int i = 0; i < TAROT_CARD_SLOTS; i++) {
+      lv_color_t* previous = card_pixels[i];
+      card_pixels[i] = nullptr;
+      tarot_page_set_card(i, nullptr, nullptr, false);
+      if (previous != nullptr) {
+        heap_caps_free(previous);
+      }
+    }
+    Lvgl_unlock();
+    Lvgl_RenderNow(19);
+  }
+
   for (int i = 0; i < slots; i++) {
     char path[64];
     snprintf(path, sizeof(path), TAROT_DIR "/%s", file_names[chosen[i]]);
@@ -301,53 +326,59 @@ void Tarot_ShowRandom(void) {
     uint16_t width = 0;
     uint16_t height = 0;
     if (!decode_rgb565(path, &rgb, &width, &height)) {
-      for (int j = 0; j < i; j++) {
-        heap_caps_free(fresh[j]);
-      }
       show_message("Card read failed");
       return;
     }
-    fresh[i] = card_to_mono(rgb, width, height);
+    lv_color_t* pixels = card_to_mono(rgb, width, height, upside_down[i]);
     heap_caps_free(rgb);
-    if (fresh[i] == nullptr) {
-      for (int j = 0; j <= i; j++) {
-        heap_caps_free(fresh[j]);
-      }
+    if (pixels == nullptr) {
       show_message("Card read failed");
       return;
     }
-  }
 
-  /* Swap every slot under one lock so the LVGL task never renders a buffer
-   * after it is freed, nor a descriptor before its pixels are set. */
-  if (!Lvgl_lock(-1)) {
-    for (int i = 0; i < slots; i++) {
-      heap_caps_free(fresh[i]);
+    /* Publish each finished card immediately. The descriptor swap and free are
+     * protected so LVGL cannot render a buffer after it has been released. */
+    if (!Lvgl_lock(-1)) {
+      heap_caps_free(pixels);
+      return;
     }
-    return;
-  }
-  for (int i = 0; i < TAROT_CARD_SLOTS; i++) {
     lv_color_t* previous = card_pixels[i];
-    lv_color_t* next = (i < slots) ? fresh[i] : nullptr;
-    card_pixels[i] = next;
-    if (next == nullptr) {
-      tarot_page_set_card(i, nullptr, nullptr);
-    } else {
-      card_dsc[i].header.always_zero = 0;
-      card_dsc[i].header.reserved = 0;
-      card_dsc[i].header.cf = LV_IMG_CF_TRUE_COLOR;
-      card_dsc[i].header.w = TAROT_CARD_WIDTH;
-      card_dsc[i].header.h = TAROT_CARD_HEIGHT;
-      card_dsc[i].data_size = TAROT_CARD_WIDTH * TAROT_CARD_HEIGHT * sizeof(lv_color_t);
-      card_dsc[i].data = (const uint8_t*)next;
-      tarot_page_set_card(i, &card_dsc[i], file_labels[chosen[i]]);
-    }
+    card_pixels[i] = pixels;
+    card_dsc[i].header.always_zero = 0;
+    card_dsc[i].header.reserved = 0;
+    card_dsc[i].header.cf = LV_IMG_CF_TRUE_COLOR;
+    card_dsc[i].header.w = TAROT_CARD_WIDTH;
+    card_dsc[i].header.h = TAROT_CARD_HEIGHT;
+    card_dsc[i].data_size = TAROT_CARD_WIDTH * TAROT_CARD_HEIGHT * sizeof(lv_color_t);
+    card_dsc[i].data = (const uint8_t*)pixels;
+    ESP_LOGI(TAG, "drew card %d %s (%d)", i, file_labels[chosen[i]], upside_down[i]);
+    tarot_page_set_card(i, &card_dsc[i], file_labels[chosen[i]], upside_down[i]);
     if (previous != nullptr) {
       heap_caps_free(previous);
     }
+    Lvgl_unlock();
+    Lvgl_RenderNow(20 + i);
   }
-  Lvgl_unlock();
-  Lvgl_RequestRender(20);
 
   ESP_LOGI(TAG, "drew %d cards", slots);
+}
+
+static void Tarot_DrawTask(void* arg) {
+  tarot_draw_random();
+  __atomic_store_n(&tarot_draw_in_progress, false, __ATOMIC_RELEASE);
+  vTaskDelete(nullptr);
+}
+
+void Tarot_ShowRandom(void) {
+  if (__atomic_exchange_n(&tarot_draw_in_progress, true, __ATOMIC_ACQ_REL)) {
+    ESP_LOGI(TAG, "draw already in progress; ignoring request");
+    return;
+  }
+
+  BaseType_t created = xTaskCreatePinnedToCore(Tarot_DrawTask, "TarotDraw", 6 * 1024, nullptr, 2,
+                                                nullptr, 1);
+  if (created != pdPASS) {
+    __atomic_store_n(&tarot_draw_in_progress, false, __ATOMIC_RELEASE);
+    ESP_LOGE(TAG, "failed to start draw task");
+  }
 }

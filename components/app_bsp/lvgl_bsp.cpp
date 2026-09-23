@@ -32,6 +32,20 @@ void Lvgl_RequestRender(int id) {
   xTaskNotifyGive(lvgl_task);
 }
 
+void Lvgl_RenderNow(int id) {
+#if LVGL_DEBUG_LOG
+  ESP_LOGI(TAG, "LVGL synchronous render request (%d)", id);
+#endif
+  assert(lvgl_task && "Lvgl_PortInit must be called first");
+  if (Lvgl_lock(-1)) {
+    lv_refr_now(NULL);
+    Lvgl_unlock();
+#if LVGL_DEBUG_LOG
+    ESP_LOGI(TAG, "LVGL synchronous render complete");
+#endif
+  }
+}
+
 static void Lvgl_port_task(void* arg) {
   for (;;) {
     /* There are no LVGL animations or input devices on this display. Run a

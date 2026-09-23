@@ -45,6 +45,7 @@ void tarot_page_init(lv_obj_t* parent) {
     lv_obj_set_style_text_font(tarot_name[slot], &lv_font_calendar_12,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_add_flag(tarot_name[slot], LV_OBJ_FLAG_HIDDEN);
+
   }
 
   tarot_msg = lv_label_create(tarot_root);
@@ -60,7 +61,7 @@ void tarot_page_init(lv_obj_t* parent) {
 
 lv_obj_t* tarot_page_root(void) { return tarot_root; }
 
-void tarot_page_set_card(int slot, const lv_img_dsc_t* dsc, const char* name) {
+void tarot_page_set_card(int slot, const lv_img_dsc_t* dsc, const char* name, bool upside_down) {
   if (slot < 0 || slot >= TAROT_CARD_SLOTS || tarot_img[slot] == NULL) {
     return;
   }
@@ -71,7 +72,13 @@ void tarot_page_set_card(int slot, const lv_img_dsc_t* dsc, const char* name) {
   }
   lv_img_set_src(tarot_img[slot], dsc);
   lv_obj_clear_flag(tarot_img[slot], LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(tarot_name[slot], name != NULL ? name : "");
+  if (upside_down) {
+    /* The ASCII marker is in the known-visible caption object rather than a
+     * second object at the clipped bottom edge of the panel. */
+    lv_label_set_text_fmt(tarot_name[slot], "%s\nv REV", name != NULL ? name : "");
+  } else {
+    lv_label_set_text(tarot_name[slot], name != NULL ? name : "");
+  }
   lv_obj_clear_flag(tarot_name[slot], LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(tarot_msg, LV_OBJ_FLAG_HIDDEN);
   lv_obj_invalidate(tarot_root);

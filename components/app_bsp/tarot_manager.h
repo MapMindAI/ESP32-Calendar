@@ -12,8 +12,9 @@ extern "C" {
 /* Mount the SD card and list the card files. Safe before the display exists. */
 void Tarot_ManagerInit(void);
 
-/* Decode and display three random cards, distinct within the draw. Falls back to
- * a status message when the card or its images are missing. */
+/* Start a background draw of three random cards, distinct within the draw. A
+ * request made while another draw is active is ignored. Falls back to a status
+ * message when the card or its images are missing. */
 void Tarot_ShowRandom(void);
 
 #ifdef __cplusplus

@@ -1,6 +1,8 @@
 #ifndef TAROT_PAGE_H
 #define TAROT_PAGE_H
 
+#include <stdbool.h>
+
 #include "lvgl.h"
 
 #ifdef __cplusplus
@@ -28,9 +30,10 @@ void tarot_page_init(lv_obj_t* parent);
 lv_obj_t* tarot_page_root(void);
 
 /* Show `dsc` and `name` in `slot` (0 … TAROT_CARD_SLOTS-1). Passing a NULL `dsc`
- * hides the slot. `dsc` must stay valid while it is displayed; the caller owns
+ * hides the slot. When `upside_down` is true, a reversal marker is shown below
+ * the card name. `dsc` must stay valid while it is displayed; the caller owns
  * its pixel buffer. */
-void tarot_page_set_card(int slot, const lv_img_dsc_t* dsc, const char* name);
+void tarot_page_set_card(int slot, const lv_img_dsc_t* dsc, const char* name, bool upside_down);
 
 /* Show a status line instead of the cards ("No SD card", ...). */
 void tarot_page_set_message(const char* text);

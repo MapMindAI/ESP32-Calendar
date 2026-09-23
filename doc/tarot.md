@@ -14,7 +14,10 @@ dashboard → tarot → Wi-Fi setup → dashboard
 ```
 
 Entering the view draws three new cards; a single click on **KEY** draws three new ones again, in
-place. KEY double and long press do nothing there. The three cards of one draw are always distinct.
+place. A request made while a draw is still decoding or publishing is ignored rather than queued.
+The draw runs in its own task, so KEY consumes and discards a click made during that interval rather
+than handling it after the active draw completes. KEY double and long press do nothing there. The
+three cards of one draw are always distinct.
 
 If the card reader or its images are missing, the view shows `No SD card`, `No images found` or
 `Card read failed` instead of the cards.
@@ -76,16 +79,23 @@ owns the widget tree and nothing else. `ui_bsp` stays free of file IO and JPEG d
    each file's caption (step 3) at the same time. If the list is empty when a draw is requested, the
    manager retries the mount and scan once, so a card inserted after boot is picked up.
 2. **Pick** — `Tarot_ShowRandom()` draws three indices with `esp_random()`, rejecting any index
-   already chosen for this draw.
+   already chosen for this draw. Each selected card is independently oriented at 0° or 180°; its
+   caption remains upright beneath the card. Its visible caption label adds a second-line `v REV`
+   marker for a 180° card.
 3. **Decode and reduce, one card at a time** — each file is read into PSRAM and decoded to RGB565
    with `esp_new_jpeg` (`JPEG_PIXEL_FORMAT_RGB565_LE`, matching LVGL's `LV_COLOR_16_SWAP=0`, output
    16-byte aligned via `heap_caps_aligned_alloc`, not `jpeg_calloc_align`). The decoder image is then
-   box-averaged down to 128 × 219 and reduced to black/white with a 4 × 4 Bayer ordered dither. The
-   decode buffer is freed before the next card, so only one 350 × 600 decode is live at a time.
-4. **Show** — all three pixel buffers and descriptors are swapped under a single `Lvgl_lock()`, the
-   labels are set, and a render is requested. Only this step runs under the lock; the decoding in
-   step 3 runs outside it. `Tarot_ShowRandom()` is called synchronously from the button tasks, and
-   the two tasks have 6 KB stacks to cover the decode.
+   box-averaged down to 128 × 219, optionally rotated 180° while it is resampled, and reduced to
+   black/white with a 4 × 4 Bayer ordered dither. The decode buffer is freed before the next card,
+   so only one 350 × 600 decode is live at a time.
+4. **Show** — the old spread is first cleared. Then, as soon as each card's mono buffer is ready,
+   its descriptor is swapped under `Lvgl_lock()`, its label is set, and the panel is synchronously
+   rendered. The next card does not begin decoding until that refresh completes, so the draw stays
+   active and later requests are ignored through the final panel update. The first completed card
+   can therefore reach the panel while the remaining cards decode; no old card remains in an
+   unfinished column. Only each small swap runs under the lock; the decoding in step 3 runs outside
+   it. `Tarot_ShowRandom()` starts a dedicated 6 KB task pinned to core 1; it stays active until the
+   final panel refresh completes.
 
 ### Why black/white pixels, not the JPEG's colours
 
@@ -97,9 +107,9 @@ dither chose. The panel's 1 bit is decided in `tarot_manager.cpp`, not in the fl
 ### Memory
 
 The transient decode buffer is ≈ 420 KB per card, freed as soon as that card's mono frame is built;
-the three frames that stay on screen are 128 × 219 × 2 ≈ 56 KB each, so ≈ 168 KB persists. The
-previous frames are freed only after the new ones are swapped in under the lock, so the LVGL task
-never renders a freed buffer.
+the three frames that stay on screen are 128 × 219 × 2 ≈ 56 KB each, so ≈ 168 KB persists. A prior
+frame is freed only after its replacement has been swapped in under the lock, so the LVGL task never
+renders a freed buffer.
 
 ## 5. Tunables
 

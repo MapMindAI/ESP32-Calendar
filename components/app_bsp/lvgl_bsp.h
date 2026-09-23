@@ -20,3 +20,8 @@ void Lvgl_unlock(void);
  * With this board's full-screen flush, rendering is intentionally event driven
  * instead of running on an idle cadence. */
 void Lvgl_RequestRender(int id);
+
+/* Render the invalidated screen before returning. Call only after releasing
+ * Lvgl_lock(); this is for flows that must not accept another request while the
+ * panel is still refreshing. */
+void Lvgl_RenderNow(int id);
