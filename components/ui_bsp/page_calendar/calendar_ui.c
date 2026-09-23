@@ -28,16 +28,24 @@
 
 #define SEP_V_X 158
 #define SEP_V_Y 15
-#define SEP_V_H 220
+#define SEP_V_H 190
 
 #define SEP_H_X 16
-#define SEP_H_Y 247
+#define SEP_H_Y 217
 #define SEP_H_W 368
 
 #define BAR_X 16
-#define BAR_Y 252
+#define BAR_Y 222
 #define BAR_W 368
-#define BAR_H 48
+#define BAR_H 78
+#define BAR_STATUS_OFFSET 30
+#define BAR_YIJI_FIRST_LINE_Y 2
+#define BAR_YIJI_SECOND_LINE_Y 17
+#define BAR_YIJI_THIRD_LINE_Y 32
+#define BAR_YIJI_FOURTH_LINE_Y 47
+#define BAR_YIJI_ONE_LINE_HEIGHT 14
+#define BAR_YIJI_TWO_LINE_HEIGHT 28
+#define BAR_YIJI_THREE_LINE_HEIGHT 43
 
 /* The battery reads "<n>%" — 39 px at its widest in the 12 px face — and the
    Wi-Fi icon sits under it, so the right-hand column stays narrow and the 宜/忌
@@ -142,6 +150,41 @@ static lv_obj_t* make_line(lv_obj_t* parent, lv_coord_t x, lv_coord_t y, lv_poin
   return line;
 }
 
+static unsigned int yiji_label_line_count(lv_obj_t* label) {
+  lv_coord_t previous_height = lv_obj_get_height(label);
+  lv_obj_set_height(label, LV_SIZE_CONTENT);
+  lv_obj_update_layout(label);
+  lv_coord_t wrapped_height = lv_obj_get_height(label);
+  lv_obj_set_height(label, previous_height);
+  return (unsigned int)((wrapped_height + BAR_YIJI_ONE_LINE_HEIGHT - 1) /
+                        BAR_YIJI_ONE_LINE_HEIGHT);
+}
+
+static void layout_yiji_labels(void) {
+  unsigned int yi_lines = yiji_label_line_count(yi_label);
+  unsigned int ji_lines = yiji_label_line_count(ji_label);
+
+  if (yi_lines > 2 && ji_lines <= 2) {
+    /* Give 宜 a third line and leave 忌 the final display row. */
+    lv_obj_set_pos(yi_label, 0, BAR_YIJI_FIRST_LINE_Y);
+    lv_obj_set_height(yi_label, BAR_YIJI_THREE_LINE_HEIGHT);
+    lv_obj_set_pos(ji_label, 0, BAR_YIJI_FOURTH_LINE_Y);
+    lv_obj_set_height(ji_label, BAR_YIJI_ONE_LINE_HEIGHT);
+  } else if (ji_lines > 2 && yi_lines <= 2) {
+    /* Keep 宜 to one line so 忌 can use the remaining three. */
+    lv_obj_set_pos(yi_label, 0, BAR_YIJI_FIRST_LINE_Y);
+    lv_obj_set_height(yi_label, BAR_YIJI_ONE_LINE_HEIGHT);
+    lv_obj_set_pos(ji_label, 0, BAR_YIJI_SECOND_LINE_Y);
+    lv_obj_set_height(ji_label, BAR_YIJI_THREE_LINE_HEIGHT);
+  } else {
+    /* Both fit in two lines, or both need more room: share the four rows. */
+    lv_obj_set_pos(yi_label, 0, BAR_YIJI_FIRST_LINE_Y);
+    lv_obj_set_height(yi_label, BAR_YIJI_TWO_LINE_HEIGHT);
+    lv_obj_set_pos(ji_label, 0, BAR_YIJI_THIRD_LINE_Y);
+    lv_obj_set_height(ji_label, BAR_YIJI_TWO_LINE_HEIGHT);
+  }
+}
+
 /* Today is the only cell that inverts. */
 static void set_day_highlight(lv_obj_t* cell, bool today) {
   if (cell == NULL) {
@@ -175,7 +218,7 @@ void calendar_ui_create(lv_obj_t* parent) {
   time_label = make_label(left_panel, 1, 54, 133, &lv_font_calendar_clock_48, LV_TEXT_ALIGN_LEFT,
                           -2, "--:--");
 
-  lv_obj_t* environment_panel = make_container(left_panel, 2, 120, 132, 22);
+  lv_obj_t* environment_panel = make_container(left_panel, 2, 110, 132, 22);
 
   temperature_label =
       make_label(environment_panel, 0, 2, 58, &lv_font_calendar_18, LV_TEXT_ALIGN_LEFT, 0, "");
@@ -185,10 +228,10 @@ void calendar_ui_create(lv_obj_t* parent) {
       make_label(environment_panel, 68, 2, 64, &lv_font_calendar_18, LV_TEXT_ALIGN_RIGHT, 0, "");
 
   week_info_label =
-      make_label(left_panel, 2, 166, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
+      make_label(left_panel, 2, 146, 132, &lv_font_calendar_12, LV_TEXT_ALIGN_LEFT, 0, "");
   /* 十二建除 and 十二值神 share one line: 建除：X 值神：Y is 120 px of the 132 px column. */
   almanac_label =
-      make_label(left_panel, 2, 194, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+      make_label(left_panel, 2, 174, 132, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
 
   make_line(root, SEP_V_X, SEP_V_Y, vertical_separator_points, 0, SEP_V_H);
 
@@ -220,25 +263,26 @@ void calendar_ui_create(lv_obj_t* parent) {
 
   lv_obj_t* bottom_bar = make_container(root, BAR_X, BAR_Y, BAR_W, BAR_H);
 
-  /* 宜/忌 run along the bottom-left, one clipped line each; the battery keeps
-     the bottom-right. The height is pinned to a single line so a list longer
-     than the bar is cut off instead of wrapping into the line below. */
-  yi_label = make_label(bottom_bar, 0, 2, BAR_YIJI_W, &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT,
-                        0, "");
-  ji_label = make_label(bottom_bar, 0, 17, BAR_YIJI_W, &lv_font_calendar_yiji_12,
+  /* 宜/忌 each wrap within two 14 px lines; text beyond those two lines is
+     clipped. The battery/status column keeps the bottom-right. */
+  yi_label = make_label(bottom_bar, 0, BAR_YIJI_FIRST_LINE_Y, BAR_YIJI_W,
+                        &lv_font_calendar_yiji_12, LV_TEXT_ALIGN_LEFT, 0, "");
+  ji_label = make_label(bottom_bar, 0, BAR_YIJI_THIRD_LINE_Y, BAR_YIJI_W, &lv_font_calendar_yiji_12,
                         LV_TEXT_ALIGN_LEFT, 0, "");
-  lv_obj_set_height(yi_label, 14);
-  lv_obj_set_height(ji_label, 14);
+  lv_obj_set_height(yi_label, BAR_YIJI_TWO_LINE_HEIGHT);
+  lv_obj_set_height(ji_label, BAR_YIJI_TWO_LINE_HEIGHT);
+  lv_label_set_long_mode(yi_label, LV_LABEL_LONG_WRAP);
+  lv_label_set_long_mode(ji_label, LV_LABEL_LONG_WRAP);
   /* Battery on the first line of the bar, Wi-Fi on the second, both right
      aligned to the same edge as the rule above them. */
-  battery_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 2, BAR_STATUS_W,
+  battery_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 2 + BAR_STATUS_OFFSET, BAR_STATUS_W,
                              &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 1, "--%");
   /* Montserrat rather than a calendar face: it is LVGL's default font, so it
      is linked either way, and it is the only one here carrying LV_SYMBOL_WIFI. */
-  wifi_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 16, BAR_STATUS_W,
+  wifi_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 16 + BAR_STATUS_OFFSET, BAR_STATUS_W,
                           &lv_font_montserrat_14, LV_TEXT_ALIGN_RIGHT, 0, "");
   lv_obj_set_height(wifi_label, 16);
-  uptime_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 32, BAR_STATUS_W,
+  uptime_label = make_label(bottom_bar, BAR_W - BAR_STATUS_W, 32 + BAR_STATUS_OFFSET, BAR_STATUS_W,
                             &lv_font_calendar_12, LV_TEXT_ALIGN_RIGHT, 0, "");
   lv_obj_set_height(uptime_label, 14);
   calendar_ui_update_wifi(CALENDAR_WIFI_UNSET);
@@ -376,8 +420,8 @@ static void draw_calendar_grid(const calendar_ui_data_t* data) {
 }
 
 void calendar_ui_refresh_all(const calendar_ui_data_t* data) {
-  /* 宜/忌 carry the whole almanac list; at 12 px CJK the longest is ~290
-     bytes with its prefix, and the label clips it to the bar width. */
+  /* 宜/忌 carry the whole almanac list; each label automatically wraps to
+     its second line and clips any remaining text. */
   char buf[320];
 
   if (root == NULL || data == NULL) {
@@ -396,6 +440,7 @@ void calendar_ui_refresh_all(const calendar_ui_data_t* data) {
     lv_label_set_text(month_label, "");
     lv_label_set_text(yi_label, "");
     lv_label_set_text(ji_label, "");
+    layout_yiji_labels();
     lv_label_set_text(ganzhi_label, "");
     clear_calendar_grid();
     return;
@@ -441,11 +486,13 @@ void calendar_ui_refresh_all(const calendar_ui_data_t* data) {
     lv_label_set_text(yi_label, buf);
     snprintf(buf, sizeof(buf), "忌：%s", data->day_ji);
     lv_label_set_text(ji_label, buf);
+    layout_yiji_labels();
   } else {
     lv_label_set_text(ganzhi_label, "");
     lv_label_set_text(almanac_label, "");
     lv_label_set_text(yi_label, "");
     lv_label_set_text(ji_label, "");
+    layout_yiji_labels();
   }
 
   draw_calendar_grid(data);

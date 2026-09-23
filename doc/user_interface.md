@@ -98,17 +98,17 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `date_label` | 16, 18 | `%04d·%02d·%02d`, 16 px | `Calendar_LoopTask` | on date change |
 | `weekday_label` | 16, 42 | `MONDAY` … `SUNDAY`, 12 px | `Calendar_LoopTask` | on date change |
 | `time_label` | 15, 68 (133 wide) | `%02d:%02d`, 48 px, fixed width | `Calendar_LoopTask` | on minute change |
-| `temperature_label` | 16, 136 | `%.1f°`, 16 px | `Sensor_LoopTask` | on threshold |
-| `env_separator` | 78, 137 (16 tall) | 1 px rule between the two readings | — | — |
-| `humidity_label` | right-aligned to 148, 136 | `%.0f%%`, 16 px | `Sensor_LoopTask` | on threshold |
-| `week_info_label` | 16, 180 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
-| `almanac_label` | 16, 208 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
-| `vertical_separator` | 158, 15 (220 tall) | column rule | — | — |
+| `temperature_label` | 16, 126 | `%.1f°`, 16 px | `Sensor_LoopTask` | on threshold |
+| `env_separator` | 78, 127 (16 tall) | 1 px rule between the two readings | — | — |
+| `humidity_label` | right-aligned to 148, 126 | `%.0f%%`, 16 px | `Sensor_LoopTask` | on threshold |
+| `week_info_label` | 16, 160 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
+| `almanac_label` | 16, 188 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `vertical_separator` | 158, 15 (190 tall) | column rule | — | — |
 | `month_label`, `ganzhi_label` | 168…384, 15 | `SEPTEMBER 2026` plus `丙午年`, 18 px / 12 px | `Calendar_LoopTask` | on date change |
 | `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
-| `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
-| `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `horizontal_separator` | 16, 217 (368 wide) | rule above the bar | — | — |
+| `yi_label`, `ji_label` | 16, 224 / 254 (312 wide) | `宜：<list>` / `忌：<list>` — normally two 12 px lines each. If only 宜 needs a third line, 忌 moves to the fourth row; if only 忌 needs a third line, it moves up to the second row and 宜 uses the first. When both need more space, they remain two lines each and clip overflow. | `Calendar_LoopTask` | on date change |
 | `battery_label` | right-aligned to 384, 254 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 | `wifi_label` | right-aligned to 384, 268 (48 wide) | `LV_SYMBOL_WIFI` plus a state marker (`✓`, `...`, `!`, `?`), 14 px Montserrat | `Time_SyncTask` | at the start and end of every sync window |
 | `uptime_label` | right-aligned to 384, 284 (48 wide) | elapsed boot duration `%02u:%02u`, 12 px | `Calendar_LoopTask` | once per minute, only with `LVGL_DEBUG_LOG` |
