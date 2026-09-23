@@ -14,6 +14,9 @@ icon under the battery percentage reports how the last window went (`✓` synced
 `...` window open, `!` no answer, `?` not configured). Wi-Fi itself is configured over a
 captive portal and the credentials are stored in NVS (see **Wi-Fi setup** below).
 
+A third view shows three random tarot cards, with their names, read from the SD card; long-pressing
+**BOOT** cycles the dashboard, the tarot cards and the Wi-Fi setup view (see **Tarot** below).
+
 The tree still starts from Waveshare's factory self-test demo; see **[AGENTS.md](AGENTS.md)** §10
 for what is still residue.
 
@@ -54,6 +57,38 @@ The device ships with no credentials. Long-press **BOOT** to open the setup view
 To wipe the saved credentials, re-run the setup (a different network overwrites them) or erase NVS
 with `idf.py -p <port> erase-flash`.
 
+## Tarot
+
+Long-press **BOOT** to cycle the views: dashboard → tarot → Wi-Fi setup → dashboard. Entering the
+tarot view draws three random cards, one per column, each with its name underneath; a single click on
+**KEY** draws three new ones. The three are always distinct. With no card inserted, or no images on
+it, the view shows `No SD card` / `No images found` instead.
+
+Cards are read from the card's root:
+
+```
+<SD card root>/
+└── tarot/
+    └── images/
+        ├── m00.jpg … m21.jpg    Major Arcana
+        ├── c01.jpg … c14.jpg    Cups
+        ├── s01.jpg … s14.jpg    Swords
+        ├── w01.jpg … w14.jpg    Wands
+        └── p01.jpg … p14.jpg    Pentacles
+```
+
+The deck that ships in this repo under `tarot/images/` is copied there as-is:
+
+```bash
+cp -r tarot/images /Volumes/<card>/tarot/     # macOS, mounted volume
+cp -r tarot/images /media/$USER/<card>/tarot/ # Linux, mounted volume
+```
+
+The files are 350 × 600 JPEGs; the firmware mounts the card at `/sdcard`, decodes three per draw and
+reduces each to the panel's 1 bit with a box average plus a 4 × 4 ordered dither. Card names come
+from the same dataset, checked into the firmware. The card source, names, decoding pipeline and error
+states are in **[doc/tarot.md](doc/tarot.md)**.
+
 ## Hardware
 
 ### Board specification
@@ -80,7 +115,7 @@ with `idf.py -p <port> erase-flash`.
 | PCF85063 RTC | I2C0 | addr `0x51` (via SensorLib) | `components/port_bsp/i2c_equipment.cpp` |
 | ES8311 codec (out) | I2C0 + I2S | addr `0x18`; MCLK 16, BCLK 9, WS 45, DOUT 8, PA enable 46 | `components/port_bsp/codec_bsp.cpp` |
 | ES7210 ADC (in) | I2C0 + I2S | addr `0x40`; DIN 10 | `components/port_bsp/codec_bsp.cpp` |
-| microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — driver present, not mounted by the firmware | `components/port_bsp/sdcard_bsp.cpp` |
+| microSD card | SDMMC, 1-bit | CLK 38, CMD 21, D0 39 — mounted at `/sdcard` for the tarot view | `components/port_bsp/sdcard_bsp.cpp` |
 | BOOT / KEY buttons | GPIO, active-low | GPIO 0 / GPIO 18 — single, double and long press | `components/port_bsp/button_bsp.c` |
 | Battery sense | ADC1 | channel 3 — percentage shown in the dashboard | `components/port_bsp/adc_bsp.cpp` |
 | Wi-Fi (STA + config hotspot) | on-chip radio | off except during the daily sync window; WPA2 softAP `ESP32-Calendar` (pass `calendar`) @192.168.4.1 while setting up | `components/app_bsp/esp_wifi_bsp.c`, `components/app_bsp/wifi_portal.c` |
@@ -101,7 +136,7 @@ main/            app_main, boot order, LVGL→1-bit flush callback, pin defines
 components/
   port_bsp/      hardware ports: display, I2C, sensors/RTC, codec, SD, buttons, ADC
   app_bsp/       LVGL port, Wi-Fi STA + captive-portal config, time (RTC+SNTP) and sensor managers
-  ui_bsp/        calendar page (page_calendar/) plus Wi-Fi setup page (page_wifi_setup/)
+  ui_bsp/        calendar page (page_calendar/), Wi-Fi setup page (page_wifi_setup/), tarot page (page_tarot/)
   user_app/      application entry points and FreeRTOS tasks
   ExternLib/     vendored third-party components (SensorLib, codec_board)
 doc/             project documentation
@@ -114,8 +149,10 @@ rules for generated and vendored code.
 
 ### This project
 
-* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the two views and every
+* **[doc/user_interface.md](doc/user_interface.md)** — display constraints, the three views and every
   widget on them, the refresh policy, button gestures and fonts
+* **[doc/tarot.md](doc/tarot.md)** — the tarot view: SD-card assets, JPEG decode and mono dither,
+  tunables and error states
 * **[doc/data_sources.md](doc/data_sources.md)** — RTC/SNTP time synchronization, SHTC3 readings,
   validation, smoothing and dashboard update cadence
 * **[doc/almanac.md](doc/almanac.md)** — how the 2026–2030 宜忌 / 十二建除 / 十二值神 tables and their

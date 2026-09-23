@@ -12,6 +12,8 @@ Code map:
 | UI fonts | `components/ui_bsp/fonts/`, declared in `calendar_fonts.h` or `wifi_setup_page.h` |
 | Wi-Fi setup view | `components/ui_bsp/page_wifi_setup/wifi_setup_page_layout.c` |
 | Widget handles (`wifi_setup_page_t` struct) | `components/ui_bsp/page_wifi_setup/wifi_setup_page.h` |
+| Tarot view container and image widget | `components/ui_bsp/page_tarot/tarot_page.c` |
+| Tarot SD scan, JPEG decode, mono dither | `components/app_bsp/tarot_manager.cpp` |
 | View switching, refresh cadence, all behaviour | `components/user_app/user_app.cpp` |
 | System clock, RTC backup, SNTP | `components/app_bsp/time_manager.cpp` |
 | Station bring-up/teardown, captive portal | `components/app_bsp/esp_wifi_bsp.c`, `wifi_portal.c` |
@@ -39,20 +41,23 @@ For source, validation and synchronization details, see
 
 ## 2. Screen model
 
-There is exactly **one** LVGL screen (`ui->screen`, white background). Two full-size containers
+There is exactly **one** LVGL screen (`ui->screen`, white background). Three full-size containers
 sit on it, and navigation is done by toggling `LV_OBJ_FLAG_HIDDEN` on them — `lv_scr_load()` and
 LVGL screen-animation helpers are not used.
 
 | Container | View | Initial state |
 |---|---|---|
 | `calendar_ui_root()` | Status dashboard (the home view) | visible |
+| `tarot_page_root()` | Tarot card | hidden |
 | `screen_cont_wifi_setup` | Wi-Fi setup / configuration | hidden |
 
-`UserApp_UiInit()` calls `wifi_setup_page_init()` and builds `calendar_ui` directly on the same
-screen. The dashboard is laid out in hand-written code where 42 calendar cells are cheap to express.
+`UserApp_UiInit()` calls `wifi_setup_page_init()` and builds `calendar_ui` and `tarot_page` directly
+on the same screen. The dashboard is laid out in hand-written code where 42 calendar cells are cheap
+to express.
 
 The invariant is *exactly one container visible at a time*. Every switch clears the incoming
-container's hidden flag and hides the other container. Adding a view means extending `show_view()`.
+container's hidden flag and hides the other two. Adding a view means extending `show_view()` in
+`button_interface.cpp` and the `app_view_t` cycle.
 
 ## 3. The views
 
@@ -294,6 +299,28 @@ With nothing stored in the NVS namespace `wificfg`, a window ends immediately an
 *unset* state; the clock then runs from the RTC alone. See
 [`data_sources.md`](data_sources.md) for the step-by-step window and its timeouts.
 
+### 3.5 Tarot view — `tarot_page_root()`
+
+A full-screen view showing three random cards from the SD card, one per column, each with its name
+underneath. It has no live data: it is redrawn only when a draw happens.
+
+| Widget | Position | Content |
+|---|---|---|
+| `tarot_img[3]` | x = -8 / 120 / 248, y = 14 | the decoded card, 128 × 219, 1-bit black/white |
+| `tarot_name[3]` | x = -8 / 120 / 248, y = 237 (128 × 46) | the card's name, 12 px, centred, wraps to a second line |
+| `tarot_msg` | centred | `No SD card` / `No images found` / `Card read failed`, 18 px |
+
+The columns butt together with no gap (`TAROT_GAP 0`) and start at x = -8, so the first card is
+clipped 8 px on the left and the row ends at x = 376.
+
+`Tarot_ManagerInit()` mounts the card and lists `/sdcard/tarot/images/*.jpg`; `Tarot_ShowRandom()`
+decodes three distinct cards down to the 1-bit panel and is called when the view is entered (BOOT
+long press) and on a KEY single click. The decode runs outside the LVGL lock; only the widget update
+is inside it.
+
+The card source, the name table, the decode → ordered-dither pipeline, its tunables and the error
+states are in [`tarot.md`](tarot.md).
+
 ## 4. Button interface
 
 Two buttons are readable by firmware, both active-low, debounced and decoded by the vendored
@@ -314,17 +341,17 @@ one bit per wake, in the priority order below.
 
 | Button | Gesture | Action |
 |---|---|---|
-| BOOT | long press | Toggle the **Wi-Fi setup view** (`screen_cont_wifi_setup`) on/off; off returns to the dashboard and stops the hotspot/portal if it is running |
+| BOOT | long press | Advance the view: dashboard → **tarot** → **Wi-Fi setup** → dashboard. Leaving the Wi-Fi view stops the hotspot/portal if it is running; entering the tarot view draws a random card |
 | BOOT | single / double click | unused |
-| KEY | single click | On the dashboard, move the calendar view one day forward and re-render the grid and the 宜忌 section; the top-left date/time block keeps showing today |
+| KEY | single click | On the dashboard, move the calendar view one day forward and re-render the grid and the 宜忌 section; the top-left date/time block keeps showing today. On the tarot view, draw the next random card |
 | KEY | double click | On the dashboard, move the calendar view to the 1st of the next month, clearing any single-day offset |
 | KEY | long press | On the dashboard, jump the calendar view back to today; on the Wi-Fi setup view, start the configuration hotspot and captive portal |
 
 Notes on the semantics as implemented:
 
 * Long press fires on **press start**, not release — the view flips while the button is still down.
-* KEY dispatches to `calendar_key_<gesture>()` on the dashboard and
-  `wifi_setup_key_<gesture>()` on the setup page. The dashboard's single click steps a day
+* KEY dispatches on `CurrentView` to `calendar_key_<gesture>()`, `tarot_key_<gesture>()` or
+  `wifi_setup_key_<gesture>()`. The dashboard's single click steps a day
   offset (`CalendarView_AdvanceDay`), its double click steps a month offset and anchors the view
   on the 1st of that month, clearing the day offset (`CalendarView_AdvanceMonth`), and its long
   press clears both (`CalendarView_ResetDay`);
@@ -332,7 +359,11 @@ Notes on the semantics as implemented:
   resulting view date (`cal_view` tag). While an offset is
   nonzero the month grid, the highlighted cell, 干支 and the 宜忌 lines follow the selected day,
   and the top-left date, weekday, week counter and clock stay on real today (the `browsing` /
-  `today_*` fields of `calendar_ui_data_t`). The setup page's long press requests the hotspot.
+  `today_*` fields of `calendar_ui_data_t`). The setup page's long press requests the hotspot; the
+  tarot page's single click calls `Tarot_ShowRandom()` and its double/long press do nothing.
+* The view switcher is `app_view_t CurrentView` (`user_app_internal.h`) with one case per view, not
+  the old two-state boolean. `BOOT_LoopTask` advances it and `show_view()` hides all three
+  containers before showing the incoming one.
 * The setup view owns the radio only after its KEY long press: that request takes `WifiMutex` and
   starts the hotspot and captive portal. Closing the view stops them if running, tears Wi-Fi down
   and releases the mutex. If a sync window (§3.4) is in progress, the page sits on `Starting
@@ -348,22 +379,24 @@ Notes on the semantics as implemented:
                               │
                               ▼
                       ┌───────────────┐
-                      │   dashboard   │
-                      │  calendar_ui  │
-                      └───────┬───────┘
-                          BOOT long
-                              ▼
-                      ┌───────────────┐
-                      │  Wi-Fi setup  │
-                      │ wifi setup    │
-                      └───────┬───────┘
-                          BOOT long
-                              ▼
-                      ┌───────────────┐
-                      │   dashboard   │
-                      │  calendar_ui  │
+                      │   dashboard   │◀──────────────┐
+                      │  calendar_ui  │               │
+                      └───────┬───────┘          BOOT long
+                          BOOT long                 │
+                              ▼                     │
+                      ┌───────────────┐             │
+                      │     tarot     │             │
+                      │  tarot_page   │             │
+                      └───────┬───────┘             │
+                          BOOT long                 │
+                              ▼                     │
+                      ┌───────────────┐             │
+                      │  Wi-Fi setup  │─────────────┘
+                      │ wifi setup    │   BOOT long
                       └───────────────┘
 ```
+
+KEY on the tarot view draws the next card in place; it does not change the view.
 
 ## 5. Typography and assets
 
@@ -425,8 +458,11 @@ Which half of the UI you are in decides the workflow:
   widgets.
 * **Wi-Fi setup view** — edit `components/ui_bsp/page_wifi_setup/wifi_setup_page_layout.c`; it owns the
   setup view's static layout and initial labels.
+* **Tarot view** — edit `components/ui_bsp/page_tarot/tarot_page.c` for the widget tree; the
+  SD scan, decode and mono conversion belong in `components/app_bsp/tarot_manager.cpp`, which drives
+  the page. Keep `ui_bsp` free of file IO and JPEG decoding.
 
-Then, in both cases:
+Then, in every case:
 
 1. Drive it from `user_app.cpp`. Keep the split: `calendar_ui.c` owns the widget tree and the
    formatting, `user_app.cpp` owns *when* things are written.
@@ -449,8 +485,9 @@ Inherited from the factory demo, or left by the dashboard rewrite; flag rather t
   `CodecPort` is not instantiated; only the `codec_bsp` component remains linked.
 * `ble_scan_bsp` is still compiled and linked but no longer called: the BLE device count went with
   the old dashboard. Bluetooth is still enabled in `sdkconfig.defaults` and costs flash for nothing.
-* The SD card is no longer mounted. `CustomSDPort` and the `/sdcard` FAT mount went with the
-  `sdcard Test:` self-test row; `sdcard_bsp` and `fatfs` remain linked.
+* The SD card is mounted at `/sdcard` for the tarot view only. `CustomSDPort` was originally written
+  for the `sdcard Test:` self-test row; `fatfs` is linked for it, and nothing else on the board uses
+  the card.
 * `calendar_calc` still computes `lunar_auspicious` (黄道吉日) and still fills `days_of_year`, but
   nothing draws either: the 黄道吉日 state and the day-of-year readout went with the old bottom bar.
   `lv_font_calendar_chinese_12` (§5) is the face that would render the 今日黄道吉日 wording if it is

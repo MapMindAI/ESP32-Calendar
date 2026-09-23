@@ -7,10 +7,13 @@
 #include "calendar_ui.h"
 #include "esp_wifi_bsp.h"
 #include "lvgl_bsp.h"
+#include "tarot_manager.h"
+#include "tarot_page.h"
 
 static void show_view(lv_obj_t* view) {
   lv_obj_add_flag(calendar_ui_root(), LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(WifiSetupPage.screen_cont_wifi_setup, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_flag(tarot_page_root(), LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(view, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -21,22 +24,40 @@ void BOOT_LoopTask(void* arg) {
     if (!(event & 0x04)) {
       continue;
     }
-    if (!IsCfgViewOn) {
-      IsCfgViewOn = true;
-      if (Lvgl_lock(-1)) {
-        show_view(WifiSetupPage.screen_cont_wifi_setup);
-        Lvgl_unlock();
-        Lvgl_RequestRender(6);
-      }
-      xEventGroupSetBits(ConfigGroups, CFG_REQ_START);
-    } else {
-      IsCfgViewOn = false;
-      if (Lvgl_lock(-1)) {
-        show_view(calendar_ui_root());
-        Lvgl_unlock();
-        Lvgl_RequestRender(7);
-      }
+
+    app_view_t previous = CurrentView;
+    switch (CurrentView) {
+      case APP_VIEW_CALENDAR:
+        CurrentView = APP_VIEW_TAROT;
+        break;
+      case APP_VIEW_TAROT:
+        CurrentView = APP_VIEW_WIFI;
+        break;
+      default:
+        CurrentView = APP_VIEW_CALENDAR;
+        break;
+    }
+    /* Leaving the setup view always stops the hotspot/portal if it is running. */
+    if (previous == APP_VIEW_WIFI) {
       xEventGroupSetBits(ConfigGroups, CFG_REQ_STOP);
+    }
+
+    lv_obj_t* view = calendar_ui_root();
+    if (CurrentView == APP_VIEW_TAROT) {
+      view = tarot_page_root();
+    } else if (CurrentView == APP_VIEW_WIFI) {
+      view = WifiSetupPage.screen_cont_wifi_setup;
+    }
+    if (Lvgl_lock(-1)) {
+      show_view(view);
+      Lvgl_unlock();
+      Lvgl_RequestRender(6);
+    }
+
+    if (CurrentView == APP_VIEW_WIFI) {
+      xEventGroupSetBits(ConfigGroups, CFG_REQ_START);
+    } else if (CurrentView == APP_VIEW_TAROT) {
+      Tarot_ShowRandom();
     }
   }
 }
@@ -53,6 +74,9 @@ static void calendar_key_long_press(void) {
   CalendarView_ResetDay();
   CalendarView_Render();
 }
+static void tarot_key_single_click(void) { Tarot_ShowRandom(); }
+static void tarot_key_double_click(void) {}
+static void tarot_key_long_press(void) {}
 static void wifi_setup_key_single_click(void) {}
 static void wifi_setup_key_double_click(void) {}
 
@@ -62,20 +86,34 @@ void KEY_LoopTask(void* arg) {
   for (;;) {
     EventBits_t event = xEventGroupWaitBits(GP18ButtonGroups, 0x01 | 0x02 | 0x04, pdTRUE, pdFALSE,
                                             pdMS_TO_TICKS(2000));
-    if (IsCfgViewOn) {
-      if (event & 0x01) {
-        wifi_setup_key_single_click();
-      } else if (event & 0x02) {
-        wifi_setup_key_double_click();
-      } else if (event & 0x04) {
-        wifi_setup_key_long_press();
-      }
-    } else if (event & 0x01) {
-      calendar_key_single_click();
-    } else if (event & 0x02) {
-      calendar_key_double_click();
-    } else if (event & 0x04) {
-      calendar_key_long_press();
+    switch (CurrentView) {
+      case APP_VIEW_WIFI:
+        if (event & 0x01) {
+          wifi_setup_key_single_click();
+        } else if (event & 0x02) {
+          wifi_setup_key_double_click();
+        } else if (event & 0x04) {
+          wifi_setup_key_long_press();
+        }
+        break;
+      case APP_VIEW_TAROT:
+        if (event & 0x01) {
+          tarot_key_single_click();
+        } else if (event & 0x02) {
+          tarot_key_double_click();
+        } else if (event & 0x04) {
+          tarot_key_long_press();
+        }
+        break;
+      default:
+        if (event & 0x01) {
+          calendar_key_single_click();
+        } else if (event & 0x02) {
+          calendar_key_double_click();
+        } else if (event & 0x04) {
+          calendar_key_long_press();
+        }
+        break;
     }
   }
 }
@@ -143,7 +181,7 @@ void Config_LoopTask(void* arg) {
       config_set_labels("Starting hotspot...",
                         "Hotspot: " ESPWIFI_AP_SSID "\nPassword: " ESPWIFI_AP_PASS);
       xSemaphoreTake(WifiMutex, portMAX_DELAY);
-      if (!IsCfgViewOn) {
+      if (CurrentView != APP_VIEW_WIFI) {
         active = false;
         xSemaphoreGive(WifiMutex);
         continue;
