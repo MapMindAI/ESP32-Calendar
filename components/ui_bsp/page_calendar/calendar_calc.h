@@ -24,7 +24,7 @@ typedef struct {
   int day_of_year;  /* 1..366 */
   int days_of_year; /* 365 or 366 */
 
-  /* 十二值日口径的黄道日状态；the generated lookup covers 2026..2030. */
+  /* 十二值日口径的黄道日状态；the generated lookup covers 2026..2046. */
   bool lunar_data_valid;
   bool lunar_auspicious;
   unsigned char lunar_deity_index;   /* 青龙..勾陈, 0..11 */
