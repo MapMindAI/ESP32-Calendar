@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the 2026--2030 Chinese almanac day table used by the calendar.
+"""Generate the 2026--2046 Chinese almanac day table used by the calendar.
 
 ``黄道吉日`` has several regional and activity-specific interpretations.  This
 utility uses the traditional 十二值日 rule: 除、危、定、执、成、开 are the six
@@ -26,65 +26,14 @@ from datetime import date, timedelta
 from pathlib import Path
 
 FIRST_YEAR = 2026
-LAST_YEAR = 2030
+LAST_YEAR = 2046
 
-CSV_PATH = Path("lunar/auspicious_days_2026_2030.csv")
+CSV_PATH = Path("lunar/auspicious_days_2026_2046.csv")
 HEADER_PATH = Path("components/ui_bsp/page_calendar/lunar_auspicious_days.h")
-
-# Encoded lunar years: low nibble is leap month (0 if none), bit 16 says a
-# leap month has 30 days, and bits 4..15 encode months 1..12 (1 = 30 days).
-# The epoch is Chinese lunar 2025-01-01, Gregorian 2025-01-29.
-LUNAR_YEAR_INFO = {
-    2025: 0x0A6E6, 2026: 0x0A4E0, 2027: 0x0D260,
-    2028: 0x0EA65, 2029: 0x0D530, 2030: 0x05AA0,
-}
-LUNAR_EPOCH = date(2025, 1, 29)
 
 HEAVENLY_OFFICERS = ("建", "除", "满", "平", "定", "执", "破", "危", "成", "收", "开", "闭")
 AUSPICIOUS_OFFICERS = frozenset(("除", "危", "定", "执", "成", "开"))
 DAY_DEITIES = ("青龙", "明堂", "天刑", "朱雀", "金匮", "天德", "白虎", "玉堂", "天牢", "玄武", "司命", "勾陈")
-
-
-def month_days(year: int, month: int) -> int:
-    return 30 if LUNAR_YEAR_INFO[year] & (0x10000 >> month) else 29
-
-
-def leap_month(year: int) -> int:
-    return LUNAR_YEAR_INFO[year] & 0xF
-
-
-def leap_days(year: int) -> int:
-    return 30 if LUNAR_YEAR_INFO[year] & 0x10000 else 29
-
-
-def lunar_date(day: date) -> tuple[int, int, int, bool]:
-    """Return lunar ``year, month, day, is_leap_month`` for supported dates."""
-    offset = (day - LUNAR_EPOCH).days
-    if offset < 0:
-        raise ValueError("date precedes supported lunar epoch")
-    year = 2025
-    while True:
-        year_days = sum(month_days(year, month) for month in range(1, 13))
-        if leap_month(year):
-            year_days += leap_days(year)
-        if offset < year_days:
-            break
-        offset -= year_days
-        year += 1
-        if year not in LUNAR_YEAR_INFO:
-            raise ValueError("date exceeds supported lunar range")
-
-    leap = leap_month(year)
-    for month in range(1, 13):
-        regular_days = month_days(year, month)
-        if offset < regular_days:
-            return year, month, offset + 1, False
-        offset -= regular_days
-        if month == leap:
-            if offset < leap_days(year):
-                return year, month, offset + 1, True
-            offset -= leap_days(year)
-    raise AssertionError("lunar year length does not match its encoded months")
 
 
 def day_branch(day: date) -> int:
@@ -96,19 +45,13 @@ def day_branch(day: date) -> int:
     return ((day - date(1900, 1, 31)).days + 4) % 12
 
 
-def officer_for(day: date) -> str:
-    _, lunar_month, _, _ = lunar_date(day)
+def officer_for(day: date, lunar_month: int) -> str:
     # Lunar month 1 is 寅 (index 2), then advances one branch each month.
     month_branch = (lunar_month + 1) % 12
     return HEAVENLY_OFFICERS[(day_branch(day) - month_branch) % 12]
 
 
-def is_auspicious(day: date) -> bool:
-    return officer_for(day) in AUSPICIOUS_OFFICERS
-
-
-def deity_index_for(day: date) -> int:
-    _, lunar_month, _, _ = lunar_date(day)
+def deity_index_for(day: date, lunar_month: int) -> int:
     return (day_branch(day) - ((lunar_month + 1) % 12)) % 12
 
 
@@ -126,9 +69,11 @@ def all_days() -> list[tuple[date, str, bool, int, tuple[str, ...], tuple[str, .
     end = date(LAST_YEAR + 1, 1, 1)
     result = []
     while current < end:
-        officer = officer_for(current)
         lunar = Solar.fromYmd(current.year, current.month, current.day).getLunar()
-        result.append((current, officer, officer in AUSPICIOUS_OFFICERS, deity_index_for(current),
+        lunar_month = abs(lunar.getMonth())
+        officer = officer_for(current, lunar_month)
+        result.append((current, officer, officer in AUSPICIOUS_OFFICERS,
+                       deity_index_for(current, lunar_month),
                        tuple(lunar.getDayYi()), tuple(lunar.getDayJi())))
         current += timedelta(days=1)
     return result
@@ -153,7 +98,7 @@ def load_csv(source: Path) -> list[tuple[date, str, bool, int, tuple[str, ...], 
 
 def write_csv(days: list[tuple[date, str, bool, int, tuple[str, ...], tuple[str, ...]]], output: Path) -> None:
     with output.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(("公历日期", "十二值日", "十二值神", "黄道吉日", "宜", "忌"))
         for current, officer, good, deity, yi, ji in days:
             writer.writerow((current.isoformat(), officer, DAY_DEITIES[deity], "是" if good else "否",

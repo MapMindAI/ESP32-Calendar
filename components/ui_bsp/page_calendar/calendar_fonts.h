@@ -12,7 +12,7 @@ LV_FONT_DECLARE(lv_font_calendar_18)       /* ASCII + U+00B0 degree, U+00B7 midd
 LV_FONT_DECLARE(lv_font_calendar_16)
 LV_FONT_DECLARE(lv_font_calendar_12)
 LV_FONT_DECLARE(lv_font_calendar_chinese_12) /* 今日黄道吉日 / 今日非黄道日 */
-LV_FONT_DECLARE(lv_font_calendar_ganzhi_12)  /* 2026--2030 year 干支 */
+LV_FONT_DECLARE(lv_font_calendar_ganzhi_12)  /* 2026--2046 year 干支 */
 LV_FONT_DECLARE(lv_font_calendar_yiji_12)
 
 #endif

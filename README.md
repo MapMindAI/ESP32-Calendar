@@ -155,7 +155,7 @@ rules for generated and vendored code.
   tunables and error states
 * **[doc/data_sources.md](doc/data_sources.md)** — RTC/SNTP time synchronization, SHTC3 readings,
   validation, smoothing and dashboard update cadence
-* **[doc/almanac.md](doc/almanac.md)** — how the 2026–2030 宜忌 / 十二建除 / 十二值神 tables and their
+* **[doc/almanac.md](doc/almanac.md)** — how the 2026–2046 宜忌 / 十二建除 / 十二值神 tables and their
   CJK font are generated, and how to rebuild them from the checked-in CSV
 * **[AGENTS.md](AGENTS.md)** — contributor rules, annotated layout, boot and concurrency contract,
   known rough edges inherited from the factory demo

@@ -5,19 +5,20 @@ How the dashboard's Chinese almanac text is produced, and how to regenerate it.
 ## What the firmware consumes
 
 The firmware never reads a data file at run time — the table is compiled in as `const` arrays under
-`components/ui_bsp/page_calendar/`. Three generated assets, all produced together:
+`components/ui_bsp/page_calendar/`. Four generated assets, all produced together:
 
 | Asset | Holds | Read by |
 |---|---|---|
-| `lunar_auspicious_days.h` | 黄道吉日 bit, 十二值神 nibble and 十二建除 nibble, one entry per day of 2026–2030 | `calendar_calc.c` via `lunar_is_auspicious_day()` / `lunar_day_deity_index()` / `lunar_day_officer_index()` |
+| `lunar_auspicious_days.h` | 黄道吉日 bit, 十二值神 nibble and 十二建除 nibble, one entry per day of 2026–2046 | `calendar_calc.c` via `lunar_is_auspicious_day()` / `lunar_day_deity_index()` / `lunar_day_officer_index()` |
 | `lunar_yiji_data.h` | every day's complete 宜 / 忌 list as one packed UTF-8 blob plus a `uint32` offset table | `calendar_calc.c` via `lunar_yi(index)` / `lunar_ji(index)` |
 | `fonts/lv_font_calendar_yiji_12.c` | 1 bpp CJK subset: every character those lists use, plus the fixed `宜忌：无十二建除值神` wording, the space that separates `建除：X 值神：Y`, and the 12 + 12 names | `calendar_ui.c` |
+| `fonts/lv_font_calendar_ganzhi_12.c` | 1 bpp CJK subset for the full heavenly-stem and earthly-branch cycle used by 2026–2046 | `calendar_ui.c` |
 
 `calendar_calc_fill()` maps a date to one flat index — `day_of_year - 1`, plus the whole years since
-2026 — and both headers are indexed the same way. **The three assets must always be regenerated
+2026 — and both headers are indexed the same way. **The generated assets must always be regenerated
 together**; a font built from a different day table will be missing glyphs.
 
-`lunar/auspicious_days_2026_2030.csv` is *not* compiled in and *not* read by any firmware code. It is
+`lunar/auspicious_days_2026_2046.csv` is *not* compiled in and *not* read by any firmware code. It is
 the human-readable form of the same table, checked in so the C assets can be reviewed and rebuilt.
 
 There is no run-time loading: no filesystem, no SD card. Regeneration is a host-side build step.
@@ -32,8 +33,8 @@ python3 lunar/lunar_utils.py --from-csv
 python3 lunar/generate_ui_yiji.py --from-csv
 ```
 
-The first writes `lunar_auspicious_days.h`. The second writes `lunar_yiji_data.h` and the font
-(Pillow is still required for the font: `python3 -m pip install -r lunar/requirements.txt`).
+The first writes `lunar_auspicious_days.h`. The second writes `lunar_yiji_data.h` and both CJK fonts
+(Pillow is still required for the fonts: `python3 -m pip install -r lunar/requirements.txt`).
 
 Both overwrite the checked-in files, so `git diff` is the check: with an unchanged CSV the diff must
 be empty.
@@ -45,7 +46,7 @@ Recomputing the table needs `lunar_python`, which reads the daily 宜 / 忌 from
 ```sh
 python3 -m pip install -r lunar/requirements.txt
 python3 lunar/lunar_utils.py           # writes the CSV and lunar_auspicious_days.h
-python3 lunar/generate_ui_yiji.py      # writes lunar_yiji_data.h and the font
+python3 lunar/generate_ui_yiji.py      # writes lunar_yiji_data.h and both CJK fonts
 ```
 
 Use this after bumping the covered years, or when the almanac rule itself changes. Both scripts take
@@ -118,7 +119,7 @@ grouping, the reading `lunar_utils.py` documents — worth knowing when the two 
 ### Caveats
 
 * **The month basis is the lunar month, not the solar-term month.** The rule above is anchored to the
-  节气 months (寅月 begins at 立春). `lunar_utils.py` uses `lunar_date()`, the month that begins at the
+  节气 months (寅月 begins at 立春). `lunar_utils.py` obtains the lunar month from `lunar_python`, the month that begins at the
   new moon, so between a new moon and the following 节 its officer can sit one step away from a 通书
   that follows 节气. 2026-02-10 is such a day: this firmware reports 满, while the 寅月 (立春 2026-02-04
   onward) rule gives 除. Fixing that means carrying a solar-term table, which the firmware does not do.

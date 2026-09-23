@@ -98,17 +98,17 @@ everything else. Nothing on this screen animates and nothing shows seconds.
 | `date_label` | 16, 18 | `%04d·%02d·%02d`, 16 px | `Calendar_LoopTask` | on date change |
 | `weekday_label` | 16, 42 | `MONDAY` … `SUNDAY`, 12 px | `Calendar_LoopTask` | on date change |
 | `time_label` | 15, 68 (133 wide) | `%02d:%02d`, 48 px, fixed width | `Calendar_LoopTask` | on minute change |
-| `temperature_label` | 16, 136 | `%.1f°`, 16 px | `Sensor_LoopTask` | on threshold |
-| `env_separator` | 78, 137 (16 tall) | 1 px rule between the two readings | — | — |
-| `humidity_label` | right-aligned to 148, 136 | `%.0f%%`, 16 px | `Sensor_LoopTask` | on threshold |
-| `week_info_label` | 16, 180 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
-| `almanac_label` | 16, 208 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
-| `vertical_separator` | 158, 15 (220 tall) | column rule | — | — |
+| `temperature_label` | 16, 126 | `%.1f°`, 16 px | `Sensor_LoopTask` | on threshold |
+| `env_separator` | 78, 127 (16 tall) | 1 px rule between the two readings | — | — |
+| `humidity_label` | right-aligned to 148, 126 | `%.0f%%`, 16 px | `Sensor_LoopTask` | on threshold |
+| `week_info_label` | 16, 160 | `WEEK %d · DAY %d`, ISO week, 12 px | `Calendar_LoopTask` | on date change |
+| `almanac_label` | 16, 188 | `建除：<十二建除> 值神：<十二值神>`, one line, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `vertical_separator` | 158, 15 (190 tall) | column rule | — | — |
 | `month_label`, `ganzhi_label` | 168…384, 15 | `SEPTEMBER 2026` plus `丙午年`, 18 px / 12 px | `Calendar_LoopTask` | on date change |
 | `weekday_header[7]` | 171 + 30·col, 45 | `M T W T F S S`, 16 px | — | — |
 | `calendar_days[6][7]` | 171 + 30·col, 69 + 26·row | day numbers, 16 px, cells 30 × 26 | `Calendar_LoopTask` | on date change |
-| `horizontal_separator` | 16, 247 (368 wide) | rule above the bar | — | — |
-| `yi_label`, `ji_label` | 16, 254 / 269 (312 wide) | `宜：<list>` / `忌：<list>` — the whole almanac list on one line, clipped at the bar width, 12 px Chinese subset | `Calendar_LoopTask` | on date change |
+| `horizontal_separator` | 16, 217 (368 wide) | rule above the bar | — | — |
+| `yi_label`, `ji_label` | 16, 224 / 254 (312 wide) | `宜：<list>` / `忌：<list>` — normally two 12 px lines each. If only 宜 needs a third line, 忌 moves to the fourth row; if only 忌 needs a third line, it moves up to the second row and 宜 uses the first. When both need more space, they remain two lines each and clip overflow. | `Calendar_LoopTask` | on date change |
 | `battery_label` | right-aligned to 384, 254 (48 wide) | `%u%%`, 12 px | `Battery_LoopTask` | on percentage change, sampled every minute |
 | `wifi_label` | right-aligned to 384, 268 (48 wide) | `LV_SYMBOL_WIFI` plus a state marker (`✓`, `...`, `!`, `?`), 14 px Montserrat | `Time_SyncTask` | at the start and end of every sync window |
 | `uptime_label` | right-aligned to 384, 284 (48 wide) | elapsed boot duration `%02u:%02u`, 12 px | `Calendar_LoopTask` | once per minute, only with `LVGL_DEBUG_LOG` |
@@ -134,7 +134,7 @@ behind it actually moved:
 | Temperature, humidity | `sensor_manager_read()`, 60 s | when \|Δt\| ≥ 0.2 °C or \|Δrh\| ≥ 1 % |
 | Battery | ADC1 channel 3, 60 s | when the percentage changes |
 | Wi-Fi icon | the sync window itself | twice per window: opened, and closed with its outcome |
-| Almanac result | generated 2026--2030 day table, 1 s | when the day changes |
+| Almanac result | generated 2026--2046 day table, 1 s | when the day changes |
 
 The LVGL task is event-driven: it runs a refresh only after one of these data
 changes or a button-driven view switch. The panel stays idle between them.
@@ -196,19 +196,19 @@ Time_SyncTask ──▶ Wi-Fi up ──▶ SNTP ──▶ Wi-Fi down ──▶ w
   sensor dithering between 24.7 and 24.8 does not walk over the refresh threshold each minute.
 * `calendar_calc` (`components/ui_bsp/page_calendar/calendar_calc.c`) turns a `struct tm` into the
   `calendar_ui_data_t` the UI draws: weekday (Monday-first), ISO 8601 week number, day of year.
-  It also looks up the generated 2026--2030 almanac: the 黄道吉日 bit, the 十二建除 officer and the
+  It also looks up the generated 2026--2046 almanac: the 黄道吉日 bit, the 十二建除 officer and the
   十二值神 deity, the last two as 4-bit indices into the name tables in `calendar_ui.c`. The UI
   reads that struct and nothing else.
 * `lunar/lunar_utils.py` produces both the complete
-  `lunar/auspicious_days_2026_2030.csv` reference list and the compact
+  `lunar/auspicious_days_2026_2046.csv` reference list and the compact
   `components/ui_bsp/page_calendar/lunar_auspicious_days.h` firmware asset. “黄道吉日” here uses the
   traditional 十二值日 definition: 除、危、定、执、成、开. It is a calendar classification, not a
-  recommendation for a particular activity. Dates outside 2026--2030 deliberately leave the
+  recommendation for a particular activity. Dates outside 2026--2046 deliberately leave the
   centre status blank rather than presenting an invented result.
   `lunar/generate_ui_yiji.py` turns the CSV's 宜 / 忌 columns into
-  `components/ui_bsp/page_calendar/lunar_yiji_data.h` — the complete list for every day, ~275 KiB of flash,
+  `components/ui_bsp/page_calendar/lunar_yiji_data.h` — the complete list for every day, ~1.1 MiB of flash,
   because the bar clips each line rather than truncating the data — plus the 1 bpp font that covers
-  every character those lists use. Both scripts rebuild their firmware assets from the checked-in CSV
+  every character those lists use and the 1 bpp 干支 font. Both scripts rebuild their firmware assets from the checked-in CSV
   with `--from-csv`; see [`almanac.md`](almanac.md) for the full regeneration procedure.
 * `Battery_LoopTask` samples the existing ADC1 channel 3 driver once a minute and writes its
   percentage to the bottom-right status label. The driver maps 3.0 V or below to 0%, 4.12 V or above
@@ -410,7 +410,7 @@ different places.
 | `lv_font_calendar_16` | 16 px | 1 | date line, temperature and humidity, calendar grid and its header |
 | `lv_font_calendar_12` | 12 px | 1 | weekday, week counter, bottom bar |
 | `lv_font_calendar_chinese_12` | 12 px | 1 | — (no caller; the 黄道吉日 state is not drawn) |
-| `lv_font_calendar_ganzhi_12` | 12 px | 1 | year 干支 beside the month heading (2026--2030 stems and branches) |
+| `lv_font_calendar_ganzhi_12` | 12 px | 1 | year 干支 beside the month heading (2026--2046 stems and branches) |
 | `lv_font_calendar_yiji_12` | 12 px | 1 | the `宜：` / `忌：` lines in the bottom bar (one clipped line each) and the single `建除：… 值神：…` line in the left column |
 | `lv_font_montserrat_14` | 14 px | 4 | the bottom-bar Wi-Fi icon and its `✓` marker — LVGL's built-in default face, the only one here carrying `LV_SYMBOL_WIFI` / `LV_SYMBOL_OK` |
 | `lv_font_MISANSMEDIUM_25` | 25 px | 4 | Wi-Fi setup title and state line |
@@ -429,7 +429,7 @@ trade. The clock face carries digits, `:` and `-` only — enough for `10:24` an
 
 `lv_font_calendar_*` covers ASCII plus U+00B0 (`°`) and U+00B7 (`·`). Chinese is served by three
 1 bpp Noto Sans CJK subsets, each carrying only the glyphs its own strings need:
-`lv_font_calendar_ganzhi_12` holds the 2026--2030 stems and branches, `lv_font_calendar_yiji_12` is
+`lv_font_calendar_ganzhi_12` holds the 2026--2046 stems and branches, `lv_font_calendar_yiji_12` is
 generated by `lunar/generate_ui_yiji.py` and covers every character that appears in any day's 宜 / 忌
 list plus the fixed `宜忌无：十二建除值神` wording, a space to separate the two status fields, and all
 十二建除 / 十二值神 names (224 glyphs, ~4.7 KB), and `lv_font_calendar_chinese_12` holds
