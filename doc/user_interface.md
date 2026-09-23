@@ -307,7 +307,7 @@ underneath. It has no live data: it is redrawn only when a draw happens.
 | Widget | Position | Content |
 |---|---|---|
 | `tarot_img[3]` | x = -8 / 120 / 248, y = 14 | the decoded card, 128 × 219, 1-bit black/white |
-| `tarot_name[3]` | x = -8 / 120 / 248, y = 237 (128 × 46) | the card's name, 12 px, centred, wraps to a second line |
+| `tarot_name[3]` | x = -8 / 120 / 248, y = 237 (128 × 46) | the card's name, 12 px, centred; a reversed card adds `v REV` on the following line |
 | `tarot_msg` | centred | `No SD card` / `No images found` / `Card read failed`, 18 px |
 
 The columns butt together with no gap (`TAROT_GAP 0`) and start at x = -8, so the first card is
