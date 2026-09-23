@@ -26,6 +26,20 @@ for what is still residue.
 * Time of the daily sync window: `TIME_SYNC_HOUR` / `TIME_SYNC_MINUTE` in `components/user_app/user_app.cpp`
 * Contributor rules, architecture notes and known rough edges: **[AGENTS.md](AGENTS.md)**
 
+## On-device demos
+
+<video src="assets/calendar-demo.mp4" controls muted playsinline width="400" title="Calendar dashboard demo"></video>
+
+Calendar dashboard — current time, sensor readings, day information and month navigation.
+
+<video src="assets/tarot-demo.mp4" controls muted playsinline width="400" title="Tarot view demo"></video>
+
+Tarot view — three SD-card-backed cards, refreshed with the KEY button.
+
+<video src="assets/wifi-setup-demo.mp4" controls muted playsinline width="400" title="Wi-Fi setup demo"></video>
+
+Wi-Fi setup — enabling the configuration hotspot and displaying its connection details.
+
 ## Quick start
 
 ```bash
